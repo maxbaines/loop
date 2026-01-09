@@ -1,11 +1,13 @@
 #!/usr/bin/env bun
 /**
- * Ralph - CLI Entry Point
+ * Little Wiggy - CLI Entry Point
  * Autonomous AI coding loop using Claude Agent SDK
  */
 
 import type { RalphArgs } from './types.ts'
 import { runRalph } from './ralph.ts'
+import { generateAndSavePrd, analyzeCodebase } from './generate.ts'
+import { loadConfig } from './config.ts'
 
 const VERSION = '1.0.0'
 
@@ -71,14 +73,15 @@ function parseArgs(args: string[]): RalphArgs {
  */
 function printHelp(): void {
   console.log(`
-Ralph Wiggum - Autonomous AI Coding Loop
+Little Wiggy - Autonomous AI Coding Loop
 
-Usage: ralph [iterations] [options]
+Usage: wiggy [command] [options]
 
-Arguments:
-  iterations          Number of iterations to run (default: 1)
+Commands:
+  run [iterations]    Run the coding loop (default command)
+  init <description>  Generate a PRD from a description
 
-Options:
+Run Options:
   -h, --help          Show this help message
   -v, --version       Show version number
   -n, --iterations N  Number of iterations to run
@@ -86,10 +89,16 @@ Options:
   --sandbox           Run in sandbox mode (limited permissions)
   -c, --config FILE   Path to config file (default: ralph.config.json)
 
+Init Options:
+  --analyze           Analyze existing codebase for context
+  --output FILE       Output file (default: prd.json)
+  --markdown          Output as Markdown instead of JSON
+
 Examples:
-  ralph 5             Run 5 iterations
-  ralph 10 --hitl     Run 10 iterations with HITL pauses
-  ralph --config my.config.json
+  wiggy 5             Run 5 iterations
+  wiggy 10 --hitl     Run 10 iterations with HITL pauses
+  wiggy init "Build a REST API for user authentication"
+  wiggy init "Add tests for all endpoints" --analyze
 
 Configuration:
   Ralph looks for configuration in this order:
@@ -123,7 +132,93 @@ For more information, visit: https://github.com/maxbaines/ralph
  * Print version
  */
 function printVersion(): void {
-  console.log(`Ralph Wiggum v${VERSION}`)
+  console.log(`Little Wiggy v${VERSION}`)
+}
+
+/**
+ * Handle init command - generate PRD from description
+ */
+async function handleInit(args: string[]): Promise<void> {
+  let description = ''
+  let analyze = false
+  let output = 'prd.json'
+  let configFile: string | undefined
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]
+    switch (arg) {
+      case '--analyze':
+        analyze = true
+        break
+      case '--output':
+        output = args[++i]
+        break
+      case '--markdown':
+        if (!output.endsWith('.md')) {
+          output = 'prd.md'
+        }
+        break
+      case '-c':
+      case '--config':
+        configFile = args[++i]
+        break
+      default:
+        // Collect description (non-flag arguments)
+        if (!arg.startsWith('-')) {
+          description += (description ? ' ' : '') + arg
+        }
+        break
+    }
+  }
+
+  if (!description) {
+    console.error('Error: Please provide a project description')
+    console.error('Usage: wiggy init "Your project description"')
+    process.exit(1)
+  }
+
+  console.log('╔════════════════════════════════════════════════════════════╗')
+  console.log('║                    🤖 Little Wiggy                         ║')
+  console.log('║                   PRD Generator                            ║')
+  console.log('╚════════════════════════════════════════════════════════════╝')
+  console.log('')
+
+  try {
+    const config = loadConfig(configFile)
+
+    console.log(`📝 Description: ${description}`)
+    console.log(`📁 Output: ${output}`)
+    console.log(`🔍 Analyze codebase: ${analyze}`)
+    console.log('')
+
+    const prd = await generateAndSavePrd(description, config, output, {
+      analyzeCodebase: analyze,
+      verbose: true,
+    })
+
+    console.log('')
+    console.log('📋 Generated PRD:')
+    console.log(`   Name: ${prd.name}`)
+    console.log(`   Tasks: ${prd.items.length}`)
+    console.log('')
+    console.log('   Tasks by priority:')
+    const high = prd.items.filter((i) => i.priority === 'high').length
+    const medium = prd.items.filter((i) => i.priority === 'medium').length
+    const low = prd.items.filter((i) => i.priority === 'low').length
+    console.log(`   - High: ${high}`)
+    console.log(`   - Medium: ${medium}`)
+    console.log(`   - Low: ${low}`)
+    console.log('')
+    console.log(
+      `🚀 Run 'wiggy ${prd.items.length}' to start working through the PRD`
+    )
+  } catch (error) {
+    console.error(
+      'Error generating PRD:',
+      error instanceof Error ? error.message : error
+    )
+    process.exit(1)
+  }
 }
 
 /**
@@ -131,7 +226,17 @@ function printVersion(): void {
  */
 async function main(): Promise<void> {
   // Skip first two args (bun and script path)
-  const args = parseArgs(process.argv.slice(2))
+  const rawArgs = process.argv.slice(2)
+
+  // Check for init command
+  if (rawArgs[0] === 'init') {
+    await handleInit(rawArgs.slice(1))
+    return
+  }
+
+  // Check for run command (explicit or implicit)
+  const argsToProcess = rawArgs[0] === 'run' ? rawArgs.slice(1) : rawArgs
+  const args = parseArgs(argsToProcess)
 
   if (args.help) {
     printHelp()

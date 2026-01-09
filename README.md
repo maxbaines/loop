@@ -24,12 +24,37 @@ bun install
 # Run with help
 bun run src/index.ts --help
 
-# Run a single iteration
-bun run src/index.ts 1
+# Generate a PRD from a description
+bun run src/index.ts init "Build a CLI todo app with add, list, complete commands"
 
-# Run 5 iterations with HITL mode
+# Run iterations to implement the PRD
 bun run src/index.ts 5 --hitl
 ```
+
+## PRD Generator
+
+Little Wiggy can generate structured PRDs from natural language descriptions using Claude:
+
+```bash
+# Basic PRD generation
+wiggy init "Build a REST API for user authentication"
+
+# Analyze existing codebase for context
+wiggy init "Add tests for all endpoints" --analyze
+
+# Output as Markdown
+wiggy init "Create a dashboard UI" --markdown
+
+# Custom output file
+wiggy init "Refactor database layer" --output plans/db-refactor.json
+```
+
+The generator follows Matt Pocock's Ralph Wiggum methodology:
+
+- **Prioritizes by type**: Architecture first, polish last
+- **Atomic tasks**: Each task completable in one iteration
+- **Acceptance criteria**: Specific, verifiable steps
+- **Explicit scope**: No room for shortcuts
 
 ## Configuration
 
@@ -177,12 +202,13 @@ bun test
 ## Project Structure
 
 ```
-bun/
+little-wiggy/
 ├── src/
 │   ├── index.ts          # CLI entry point
 │   ├── ralph.ts          # Main loop logic
 │   ├── agent.ts          # Claude Agent SDK wrapper
 │   ├── config.ts         # Configuration loading
+│   ├── generate.ts       # PRD generator (AI-powered)
 │   ├── prd.ts            # PRD file parsing
 │   ├── progress.ts       # Progress tracking
 │   ├── types.ts          # TypeScript types
@@ -191,6 +217,7 @@ bun/
 │       ├── filesystem.ts # File operations
 │       ├── terminal.ts   # Command execution
 │       └── git.ts        # Git operations
+├── test/                 # Example project (Hello World Mac app)
 ├── package.json
 ├── tsconfig.json
 └── .env.example
