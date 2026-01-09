@@ -1,0 +1,261 @@
+/**
+ * PRD (Product Requirements Document) parsing for Ralph
+ * Supports both JSON and Markdown formats
+ */
+
+import { existsSync, readFileSync, writeFileSync } from 'fs'
+import type { PrdJson, PrdItem } from './types.ts'
+
+/**
+ * Load and parse a PRD file
+ */
+export function loadPrd(filePath: string): PrdJson | null {
+  if (!existsSync(filePath)) {
+    return null
+  }
+
+  const content = readFileSync(filePath, 'utf-8')
+
+  if (filePath.endsWith('.json')) {
+    return parseJsonPrd(content)
+  } else if (filePath.endsWith('.md')) {
+    return parseMarkdownPrd(content)
+  }
+
+  // Try to detect format
+  try {
+    return parseJsonPrd(content)
+  } catch {
+    return parseMarkdownPrd(content)
+  }
+}
+
+/**
+ * Parse JSON format PRD
+ */
+function parseJsonPrd(content: string): PrdJson {
+  const data = JSON.parse(content)
+
+  // Handle both flat array and nested items format
+  if (Array.isArray(data)) {
+    return {
+      name: 'PRD',
+      items: data.map(normalizeItem),
+    }
+  }
+
+  return {
+    name: data.name || 'PRD',
+    description: data.description,
+    items: (data.items || []).map(normalizeItem),
+  }
+}
+
+/**
+ * Normalize a PRD item to ensure all fields exist
+ */
+function normalizeItem(item: Partial<PrdItem>, index: number): PrdItem {
+  return {
+    id: item.id || String(index + 1),
+    category: item.category || 'general',
+    description: item.description || '',
+    steps: item.steps || [],
+    priority: item.priority || 'medium',
+    passes: item.passes || false,
+  }
+}
+
+/**
+ * Parse Markdown format PRD
+ */
+function parseMarkdownPrd(content: string): PrdJson {
+  const items: PrdItem[] = []
+  const lines = content.split('\n')
+
+  let currentPriority: 'high' | 'medium' | 'low' = 'medium'
+  let currentItem: Partial<PrdItem> | null = null
+  let itemIndex = 0
+
+  for (const line of lines) {
+    // Detect priority sections
+    if (line.toLowerCase().includes('high priority')) {
+      currentPriority = 'high'
+      continue
+    }
+    if (line.toLowerCase().includes('medium priority')) {
+      currentPriority = 'medium'
+      continue
+    }
+    if (line.toLowerCase().includes('low priority')) {
+      currentPriority = 'low'
+      continue
+    }
+
+    // Detect task items (checkbox format)
+    const taskMatch = line.match(/^-\s*\[([ xX])\]\s*\*?\*?(.+?)\*?\*?\s*$/)
+    if (taskMatch) {
+      // Save previous item
+      if (currentItem) {
+        items.push(normalizeItem(currentItem, itemIndex++))
+      }
+
+      const isComplete = taskMatch[1].toLowerCase() === 'x'
+      const description = taskMatch[2].trim()
+
+      currentItem = {
+        id: String(itemIndex + 1),
+        category: 'general',
+        description,
+        steps: [],
+        priority: currentPriority,
+        passes: isComplete,
+      }
+      continue
+    }
+
+    // Detect sub-items (steps)
+    const stepMatch = line.match(/^\s+-\s+(.+)$/)
+    if (stepMatch && currentItem) {
+      currentItem.steps = currentItem.steps || []
+      currentItem.steps.push(stepMatch[1].trim())
+    }
+  }
+
+  // Don't forget the last item
+  if (currentItem) {
+    items.push(normalizeItem(currentItem, itemIndex))
+  }
+
+  return {
+    name: 'PRD',
+    items,
+  }
+}
+
+/**
+ * Save PRD back to file
+ */
+export function savePrd(filePath: string, prd: PrdJson): void {
+  if (filePath.endsWith('.json')) {
+    writeFileSync(filePath, JSON.stringify(prd, null, 2), 'utf-8')
+  } else if (filePath.endsWith('.md')) {
+    writeFileSync(filePath, prdToMarkdown(prd), 'utf-8')
+  }
+}
+
+/**
+ * Convert PRD to Markdown format
+ */
+function prdToMarkdown(prd: PrdJson): string {
+  const lines: string[] = []
+
+  if (prd.name) {
+    lines.push(`# ${prd.name}`)
+    lines.push('')
+  }
+
+  if (prd.description) {
+    lines.push(prd.description)
+    lines.push('')
+  }
+
+  lines.push('## Tasks')
+  lines.push('')
+
+  // Group by priority
+  const byPriority = {
+    high: prd.items.filter((i) => i.priority === 'high'),
+    medium: prd.items.filter((i) => i.priority === 'medium'),
+    low: prd.items.filter((i) => i.priority === 'low'),
+  }
+
+  for (const [priority, items] of Object.entries(byPriority)) {
+    if (items.length === 0) continue
+
+    lines.push(
+      `### ${priority.charAt(0).toUpperCase() + priority.slice(1)} Priority`
+    )
+    lines.push('')
+
+    for (const item of items) {
+      const checkbox = item.passes ? '[x]' : '[ ]'
+      lines.push(`- ${checkbox} **${item.description}**`)
+
+      for (const step of item.steps) {
+        lines.push(`  - ${step}`)
+      }
+
+      lines.push('')
+    }
+  }
+
+  return lines.join('\n')
+}
+
+/**
+ * Mark a PRD item as complete
+ */
+export function markItemComplete(prd: PrdJson, itemId: string): PrdJson {
+  return {
+    ...prd,
+    items: prd.items.map((item) =>
+      item.id === itemId ? { ...item, passes: true } : item
+    ),
+  }
+}
+
+/**
+ * Get incomplete items from PRD
+ */
+export function getIncompleteItems(prd: PrdJson): PrdItem[] {
+  return prd.items.filter((item) => !item.passes)
+}
+
+/**
+ * Get items by priority
+ */
+export function getItemsByPriority(prd: PrdJson): {
+  high: PrdItem[]
+  medium: PrdItem[]
+  low: PrdItem[]
+} {
+  const incomplete = getIncompleteItems(prd)
+  return {
+    high: incomplete.filter((i) => i.priority === 'high'),
+    medium: incomplete.filter((i) => i.priority === 'medium'),
+    low: incomplete.filter((i) => i.priority === 'low'),
+  }
+}
+
+/**
+ * Check if PRD is complete
+ */
+export function isPrdComplete(prd: PrdJson): boolean {
+  return prd.items.every((item) => item.passes)
+}
+
+/**
+ * Get PRD summary for prompt
+ */
+export function getPrdSummary(prd: PrdJson): string {
+  const total = prd.items.length
+  const complete = prd.items.filter((i) => i.passes).length
+  const incomplete = getIncompleteItems(prd)
+
+  let summary = `PRD: ${prd.name}\n`
+  summary += `Progress: ${complete}/${total} tasks complete\n\n`
+
+  if (incomplete.length > 0) {
+    summary += 'Remaining tasks:\n'
+    for (const item of incomplete) {
+      summary += `- [${item.priority}] ${item.description}\n`
+      for (const step of item.steps) {
+        summary += `  - ${step}\n`
+      }
+    }
+  } else {
+    summary += 'All tasks complete!'
+  }
+
+  return summary
+}

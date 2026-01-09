@@ -1,0 +1,39 @@
+{
+  "name": "little-wiggy",
+  "version": "1.0.0",
+  "description": "Autonomous AI coding loop using Claude Agent SDK",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "ralph": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile dist/ralph",
+    "build:mac": "bun build src/index.ts --compile --target=bun-darwin-arm64 --outfile dist/ralph-mac-arm64",
+    "build:mac-x64": "bun build src/index.ts --compile --target=bun-darwin-x64 --outfile dist/ralph-mac-x64",
+    "build:linux": "bun build src/index.ts --compile --target=bun-linux-x64 --outfile dist/ralph-linux-x64",
+    "build:windows": "bun build src/index.ts --compile --target=bun-windows-x64 --outfile dist/ralph-windows-x64.exe",
+    "build:all": "bun run build:mac && bun run build:mac-x64 && bun run build:linux && bun run build:windows",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "ai",
+    "claude",
+    "agent",
+    "coding",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT"
+}

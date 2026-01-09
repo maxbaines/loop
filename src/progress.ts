@@ -1,0 +1,184 @@
+/**
+ * Progress tracking for Ralph
+ * Maintains a log of completed work between iterations
+ */
+
+import { existsSync, readFileSync, writeFileSync, appendFileSync } from 'fs'
+import type { ProgressEntry } from './types.ts'
+
+/**
+ * Initialize progress file if it doesn't exist
+ */
+export function initProgressFile(filePath: string): void {
+  if (!existsSync(filePath)) {
+    const header = `# Ralph Progress Log
+# Created: ${new Date().toISOString()}
+# This file tracks progress between Ralph iterations.
+# Delete this file when your sprint is complete.
+
+`
+    writeFileSync(filePath, header, 'utf-8')
+  }
+}
+
+/**
+ * Load progress entries from file
+ */
+export function loadProgress(filePath: string): ProgressEntry[] {
+  if (!existsSync(filePath)) {
+    return []
+  }
+
+  const content = readFileSync(filePath, 'utf-8')
+  const entries: ProgressEntry[] = []
+
+  // Parse the progress file
+  // Format: ## Iteration N - timestamp
+  const iterationBlocks = content.split(/^## Iteration \d+/m).slice(1)
+
+  for (const block of iterationBlocks) {
+    const lines = block.trim().split('\n')
+    const headerMatch = lines[0]?.match(/- (.+)/)
+    const timestamp = headerMatch?.[1] || new Date().toISOString()
+
+    const entry: ProgressEntry = {
+      timestamp,
+      iteration: entries.length + 1,
+      taskDescription: '',
+      decisions: [],
+      filesChanged: [],
+    }
+
+    let currentSection = ''
+
+    for (const line of lines.slice(1)) {
+      if (line.startsWith('### Task:')) {
+        entry.taskDescription = line.replace('### Task:', '').trim()
+      } else if (line.startsWith('### Decisions')) {
+        currentSection = 'decisions'
+      } else if (line.startsWith('### Files Changed')) {
+        currentSection = 'files'
+      } else if (line.startsWith('### Notes')) {
+        currentSection = 'notes'
+      } else if (line.startsWith('- ') && currentSection === 'decisions') {
+        entry.decisions.push(line.replace('- ', ''))
+      } else if (line.startsWith('- ') && currentSection === 'files') {
+        entry.filesChanged.push(line.replace('- ', ''))
+      } else if (currentSection === 'notes' && line.trim()) {
+        entry.notes = (entry.notes || '') + line + '\n'
+      }
+    }
+
+    if (entry.taskDescription) {
+      entries.push(entry)
+    }
+  }
+
+  return entries
+}
+
+/**
+ * Append a progress entry to the file
+ */
+export function appendProgress(filePath: string, entry: ProgressEntry): void {
+  initProgressFile(filePath)
+
+  const content = `
+## Iteration ${entry.iteration} - ${entry.timestamp}
+
+### Task: ${entry.taskDescription}
+${entry.taskId ? `Task ID: ${entry.taskId}` : ''}
+
+### Decisions
+${entry.decisions.map((d) => `- ${d}`).join('\n') || '- None'}
+
+### Files Changed
+${entry.filesChanged.map((f) => `- ${f}`).join('\n') || '- None'}
+
+### Notes
+${entry.notes || 'None'}
+
+---
+`
+
+  appendFileSync(filePath, content, 'utf-8')
+}
+
+/**
+ * Get progress summary for prompt
+ */
+export function getProgressSummary(filePath: string): string {
+  const entries = loadProgress(filePath)
+
+  if (entries.length === 0) {
+    return 'No previous progress recorded.'
+  }
+
+  let summary = `Previous Progress (${entries.length} iterations):\n\n`
+
+  // Show last 5 entries
+  const recentEntries = entries.slice(-5)
+
+  for (const entry of recentEntries) {
+    summary += `Iteration ${entry.iteration}: ${entry.taskDescription}\n`
+    if (entry.decisions.length > 0) {
+      summary += `  Decisions: ${entry.decisions.join(', ')}\n`
+    }
+    if (entry.filesChanged.length > 0) {
+      summary += `  Files: ${entry.filesChanged.join(', ')}\n`
+    }
+    summary += '\n'
+  }
+
+  return summary
+}
+
+/**
+ * Create a progress entry from iteration results
+ */
+export function createProgressEntry(
+  iteration: number,
+  taskDescription: string,
+  options: {
+    taskId?: string
+    decisions?: string[]
+    filesChanged?: string[]
+    notes?: string
+  } = {}
+): ProgressEntry {
+  return {
+    timestamp: new Date().toISOString(),
+    iteration,
+    taskId: options.taskId,
+    taskDescription,
+    decisions: options.decisions || [],
+    filesChanged: options.filesChanged || [],
+    notes: options.notes,
+  }
+}
+
+/**
+ * Clear progress file (for new sprint)
+ */
+export function clearProgress(filePath: string): void {
+  if (existsSync(filePath)) {
+    const header = `# Ralph Progress Log
+# Created: ${new Date().toISOString()}
+# This file tracks progress between Ralph iterations.
+# Delete this file when your sprint is complete.
+
+`
+    writeFileSync(filePath, header, 'utf-8')
+  }
+}
+
+/**
+ * Get the last iteration number
+ */
+export function getLastIteration(filePath: string): number {
+  const entries = loadProgress(filePath)
+  if (entries.length === 0) {
+    return 0
+  }
+  return Math.max(...entries.map((e) => e.iteration))
+}
