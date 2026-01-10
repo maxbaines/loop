@@ -4,9 +4,15 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'fs'
 import { join } from 'path'
-import type { PrdJson, PrdItem, RalphConfig } from './types.ts'
+import type { PrdJson, RalphConfig } from './types.ts'
 import { savePrd } from './prd.ts'
 
 /**
@@ -305,4 +311,233 @@ export async function generateAndSavePrd(
   }
 
   return prd
+}
+
+/**
+ * System prompt for AGENTS.md generation
+ */
+const AGENTS_GENERATION_PROMPT = `You are generating an AGENTS.md file for an autonomous AI coding agent.
+
+AGENTS.md provides project-specific guidelines that help the AI agent understand:
+- What kind of project this is
+- The tech stack and tools
+- Code standards and conventions
+- What to do and what NOT to do
+
+## Output Format
+
+Generate a Markdown file with these sections:
+
+# AGENTS.md - [Project Name]
+
+## Project Type
+[production/prototype/library] - Brief description
+
+## Tech Stack
+- Language: [e.g., TypeScript, Python]
+- Framework: [e.g., React, FastAPI]
+- Database: [if applicable]
+- Other: [other key technologies]
+
+## Build & Run
+\`\`\`bash
+# Install dependencies
+[command]
+
+# Build
+[command]
+
+# Run
+[command]
+
+# Test
+[command]
+\`\`\`
+
+## Code Standards
+- [Standard 1]
+- [Standard 2]
+- [etc.]
+
+## Architecture
+\`\`\`
+[Directory structure]
+\`\`\`
+
+## What TO Do
+- [Guideline 1]
+- [Guideline 2]
+
+## What NOT To Do
+- [Anti-pattern 1]
+- [Anti-pattern 2]
+
+## Notes
+[Any additional context]
+
+Be specific to the project. Infer from the description and any existing files.
+Return ONLY the Markdown content, no explanations.`
+
+/**
+ * Generate AGENTS.md from project description
+ */
+export async function generateAgentsMd(
+  description: string,
+  config: RalphConfig,
+  options: {
+    existingFiles?: string[]
+    projectDocs?: string
+  } = {}
+): Promise<string> {
+  const client = new Anthropic({
+    apiKey: config.apiKey,
+    timeout: 5 * 60 * 1000,
+  })
+
+  let context = `## Project Description\n${description}\n\n`
+
+  if (options.existingFiles && options.existingFiles.length > 0) {
+    context += `## Existing Files\n${options.existingFiles.join('\n')}\n\n`
+  }
+
+  if (options.projectDocs) {
+    context += `## Existing Documentation\n${options.projectDocs}\n\n`
+  }
+
+  const response = await client.messages.create({
+    model: config.model,
+    max_tokens: 4096,
+    system: AGENTS_GENERATION_PROMPT,
+    messages: [
+      {
+        role: 'user',
+        content: `Generate an AGENTS.md file for this project:\n\n${context}`,
+      },
+    ],
+  })
+
+  const textContent = response.content.find((block) => block.type === 'text')
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text response from Claude')
+  }
+
+  let markdown = textContent.text.trim()
+
+  // Remove markdown code block wrapper if present
+  const mdMatch = markdown.match(/```(?:markdown|md)?\s*([\s\S]*?)```/)
+  if (mdMatch) {
+    markdown = mdMatch[1].trim()
+  }
+
+  return markdown
+}
+
+/**
+ * Generate and save AGENTS.md to file
+ */
+export async function generateAndSaveAgentsMd(
+  description: string,
+  config: RalphConfig,
+  outputPath: string,
+  options: {
+    analyzeCodebase?: boolean
+    verbose?: boolean
+  } = {}
+): Promise<string> {
+  if (options.verbose) {
+    console.log('🔍 Analyzing project for AGENTS.md...')
+  }
+
+  const existingFiles = options.analyzeCodebase
+    ? analyzeCodebase(config.workingDir)
+    : undefined
+
+  const projectDocs = readProjectDocs(config.workingDir) || undefined
+
+  if (options.verbose && existingFiles) {
+    console.log(`   Found ${existingFiles.length} files`)
+  }
+
+  if (options.verbose) {
+    console.log('🤖 Generating AGENTS.md...')
+  }
+
+  const agentsMd = await generateAgentsMd(description, config, {
+    existingFiles,
+    projectDocs,
+  })
+
+  writeFileSync(outputPath, agentsMd, 'utf-8')
+
+  if (options.verbose) {
+    console.log(`✅ AGENTS.md saved to ${outputPath}`)
+  }
+
+  return agentsMd
+}
+
+/**
+ * Generate both PRD and AGENTS.md together
+ */
+export async function generateProjectFiles(
+  description: string,
+  config: RalphConfig,
+  options: {
+    prdPath?: string
+    agentsPath?: string
+    analyzeCodebase?: boolean
+    verbose?: boolean
+  } = {}
+): Promise<{ prd: PrdJson; agentsMd: string }> {
+  const prdPath = options.prdPath || 'prd.json'
+  const agentsPath = options.agentsPath || 'AGENTS.md'
+
+  // Analyze codebase once for both
+  const existingFiles = options.analyzeCodebase
+    ? analyzeCodebase(config.workingDir)
+    : undefined
+
+  const projectDocs = readProjectDocs(config.workingDir) || undefined
+
+  if (options.verbose) {
+    console.log('🔍 Analyzing project...')
+    if (existingFiles) {
+      console.log(`   Found ${existingFiles.length} files`)
+    }
+  }
+
+  // Generate PRD
+  if (options.verbose) {
+    console.log('🤖 Generating PRD...')
+  }
+
+  const prd = await generatePrd(description, config, {
+    analyzeCodebase: options.analyzeCodebase,
+    existingFiles,
+  })
+
+  savePrd(prdPath, prd)
+
+  if (options.verbose) {
+    console.log(`   Generated ${prd.items.length} tasks`)
+    console.log(`✅ PRD saved to ${prdPath}`)
+  }
+
+  // Generate AGENTS.md
+  if (options.verbose) {
+    console.log('🤖 Generating AGENTS.md...')
+  }
+
+  const agentsMd = await generateAgentsMd(description, config, {
+    existingFiles,
+    projectDocs,
+  })
+
+  writeFileSync(agentsPath, agentsMd, 'utf-8')
+
+  if (options.verbose) {
+    console.log(`✅ AGENTS.md saved to ${agentsPath}`)
+  }
+
+  return { prd, agentsMd }
 }

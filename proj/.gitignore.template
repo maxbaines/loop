@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+vendor/
+.venv/
+
+# Build outputs
+dist/
+build/
+.build/
+out/
+*.o
+*.exe
+
+# Environment files
+.env
+.env.local
+.env.*.local
+ralph.config.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Little Wiggy
+progress.txt
+
+# Language specific (uncomment as needed)
+# Python
+# __pycache__/
+# *.pyc
+# .pytest_cache/
+
+# Node
+# npm-debug.log*
+# yarn-error.log*
+
+# Rust
+# target/
+# Cargo.lock
+
+# Go
+# bin/

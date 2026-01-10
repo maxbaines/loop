@@ -6,7 +6,7 @@
 
 import type { RalphArgs } from './types.ts'
 import { runRalph } from './ralph.ts'
-import { generateAndSavePrd, analyzeCodebase } from './generate.ts'
+import { generateProjectFiles } from './generate.ts'
 import { loadConfig } from './config.ts'
 
 const VERSION = '1.0.0'
@@ -179,7 +179,7 @@ async function handleInit(args: string[]): Promise<void> {
 
   console.log('╔════════════════════════════════════════════════════════════╗')
   console.log('║                    🤖 Little Wiggy                         ║')
-  console.log('║                   PRD Generator                            ║')
+  console.log('║              PRD & AGENTS.md Generator                     ║')
   console.log('╚════════════════════════════════════════════════════════════╝')
   console.log('')
 
@@ -187,11 +187,14 @@ async function handleInit(args: string[]): Promise<void> {
     const config = loadConfig(configFile)
 
     console.log(`📝 Description: ${description}`)
-    console.log(`📁 Output: ${output}`)
+    console.log(`📁 PRD Output: ${output}`)
+    console.log(`📁 AGENTS.md: AGENTS.md`)
     console.log(`🔍 Analyze codebase: ${analyze}`)
     console.log('')
 
-    const prd = await generateAndSavePrd(description, config, output, {
+    const { prd } = await generateProjectFiles(description, config, {
+      prdPath: output,
+      agentsPath: 'AGENTS.md',
       analyzeCodebase: analyze,
       verbose: true,
     })
@@ -202,9 +205,9 @@ async function handleInit(args: string[]): Promise<void> {
     console.log(`   Tasks: ${prd.items.length}`)
     console.log('')
     console.log('   Tasks by priority:')
-    const high = prd.items.filter((i) => i.priority === 'high').length
-    const medium = prd.items.filter((i) => i.priority === 'medium').length
-    const low = prd.items.filter((i) => i.priority === 'low').length
+    const high = prd.items.filter((item) => item.priority === 'high').length
+    const medium = prd.items.filter((item) => item.priority === 'medium').length
+    const low = prd.items.filter((item) => item.priority === 'low').length
     console.log(`   - High: ${high}`)
     console.log(`   - Medium: ${medium}`)
     console.log(`   - Low: ${low}`)
