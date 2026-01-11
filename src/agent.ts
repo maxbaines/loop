@@ -13,6 +13,7 @@ import type {
 import type { RalphConfig } from './types.ts'
 import { toolDefinitions, executeTool } from './tools/index.ts'
 import { COMPLETION_MARKER } from './types.ts'
+import { formatToolCall, formatToolResult, formatFileChange } from './output.ts'
 
 /**
  * Create the Ralph system prompt
@@ -154,8 +155,10 @@ export async function runIteration(
           hasToolUse = true
 
           if (verbose) {
-            console.log(`\n🔧 Tool: ${block.name}`)
-            console.log(`   Input: ${JSON.stringify(block.input)}`)
+            // Format tool call with rich output
+            console.log(
+              formatToolCall(block.name, block.input as Record<string, unknown>)
+            )
           }
 
           // Execute the tool
@@ -166,11 +169,26 @@ export async function runIteration(
           )
 
           if (verbose) {
-            console.log(
-              `   Result: ${toolResult.substring(0, 200)}${
-                toolResult.length > 200 ? '...' : ''
-              }`
-            )
+            // Determine result type based on tool result
+            const resultType = toolResult.includes('Error')
+              ? 'error'
+              : toolResult.includes('success') ||
+                toolResult.includes('passed') ||
+                toolResult.includes('completed')
+              ? 'success'
+              : 'info'
+
+            console.log(formatToolResult(toolResult, resultType))
+
+            // Show file change notification for write_file
+            if (block.name === 'write_file' && block.input) {
+              const input = block.input as { path?: string; content?: string }
+              if (input.path) {
+                console.log(
+                  formatFileChange(input.path, 'create', input.content)
+                )
+              }
+            }
           }
 
           // Track file changes

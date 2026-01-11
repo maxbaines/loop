@@ -22,36 +22,23 @@ import {
   getLastIteration,
 } from './progress.ts'
 import { createSystemPrompt, runIteration } from './agent.ts'
-
-// Colors for terminal output
-const colors = {
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  reset: '\x1b[0m',
-}
-
-/**
- * Print colored output
- */
-function log(message: string, color?: keyof typeof colors): void {
-  if (color) {
-    console.log(`${colors[color]}${message}${colors.reset}`)
-  } else {
-    console.log(message)
-  }
-}
+import {
+  log,
+  formatBox,
+  formatIterationHeader,
+  formatSuccess,
+  formatError,
+  formatWarning,
+  formatInfo,
+} from './output.ts'
 
 /**
  * Print the Ralph banner
  */
 function printBanner(): void {
-  log('╔════════════════════════════════════════════════════════════╗', 'blue')
-  log('║                    🤖 Ralph Wiggum                         ║', 'blue')
-  log('║              Autonomous AI Coding Loop                     ║', 'blue')
-  log('╚════════════════════════════════════════════════════════════╝', 'blue')
-  console.log()
+  console.log(
+    formatBox('🤖 Ralph Wiggum', 'Autonomous AI Coding Loop', 'neonCyan')
+  )
 }
 
 /**
@@ -91,9 +78,9 @@ export async function runRalph(args: RalphArgs): Promise<void> {
   const errors = validateConfig(config)
 
   if (errors.length > 0) {
-    log('Configuration errors:', 'red')
+    console.log(formatError('Configuration errors:'))
     for (const error of errors) {
-      log(`  - ${error}`, 'red')
+      console.log(formatError(`  - ${error}`))
     }
     process.exit(1)
   }
@@ -103,9 +90,8 @@ export async function runRalph(args: RalphArgs): Promise<void> {
   const prd = prdPath ? loadPrd(prdPath) : null
 
   if (!prd) {
-    log(
-      'Warning: No PRD file found. Ralph will work without a task list.',
-      'yellow'
+    console.log(
+      formatWarning('No PRD file found. Ralph will work without a task list.')
     )
   }
 
@@ -114,11 +100,11 @@ export async function runRalph(args: RalphArgs): Promise<void> {
   initProgressFile(progressPath)
 
   // Print configuration
-  log(`Iterations: ${args.iterations}`, 'green')
-  log(`HITL Mode: ${args.hitl}`, 'green')
-  log(`PRD File: ${prdPath || 'None'}`, 'green')
-  log(`Progress File: ${config.progressFile}`, 'green')
-  log(`Working Dir: ${config.workingDir}`, 'green')
+  console.log(formatInfo(`Iterations: ${args.iterations}`))
+  console.log(formatInfo(`HITL Mode: ${args.hitl}`))
+  console.log(formatInfo(`PRD File: ${prdPath || 'None'}`))
+  console.log(formatInfo(`Progress File: ${config.progressFile}`))
+  console.log(formatInfo(`Working Dir: ${config.workingDir}`))
   console.log()
 
   // Initialize loop state
@@ -135,20 +121,20 @@ export async function runRalph(args: RalphArgs): Promise<void> {
     state.iteration++
 
     console.log()
-    log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'blue')
-    log(`  Iteration ${i} of ${args.iterations}`, 'blue')
-    log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'blue')
+    console.log(formatIterationHeader(i, args.iterations))
     console.log()
 
     // HITL mode: pause before each iteration (except first)
     if (args.hitl && i > 1) {
-      log('HITL Mode: Press Enter to continue or Ctrl+C to stop...', 'yellow')
+      console.log(
+        formatWarning('HITL Mode: Press Enter to continue or Ctrl+C to stop...')
+      )
       await waitForEnter()
     }
 
     // Check if PRD is already complete
     if (prd && isPrdComplete(prd)) {
-      log('PRD is already complete!', 'green')
+      console.log(formatSuccess('PRD is already complete!'))
       state.isComplete = true
       break
     }
@@ -166,11 +152,11 @@ export async function runRalph(args: RalphArgs): Promise<void> {
     )
 
     // Run the iteration
-    log('Running iteration...', 'blue')
+    console.log(formatInfo('Running iteration...'))
     const result = await runIteration(config, systemPrompt, config.verbose)
 
     if (result.success) {
-      log(`✓ ${result.taskDescription}`, 'green')
+      console.log(formatSuccess(result.taskDescription || 'Task completed'))
 
       // Record progress
       const entry = createProgressEntry(
@@ -192,7 +178,7 @@ export async function runRalph(args: RalphArgs): Promise<void> {
           savePrd(prdPath, updatedPrd)
           // Update our in-memory copy
           state.prd = updatedPrd
-          log(`  → Marked task as [DONE] in PRD`, 'green')
+          console.log(formatSuccess('  → Marked task as [DONE] in PRD'))
         }
       }
 
@@ -202,14 +188,15 @@ export async function runRalph(args: RalphArgs): Promise<void> {
         break
       }
     } else {
-      log(`✗ Error: ${result.error}`, 'red')
+      console.log(formatError(`Error: ${result.error}`))
       state.lastError = result.error
 
       // In HITL mode, continue despite errors
       if (!args.hitl) {
-        log(
-          'Stopping due to error. Use --hitl mode to continue despite errors.',
-          'yellow'
+        console.log(
+          formatWarning(
+            'Stopping due to error. Use --hitl mode to continue despite errors.'
+          )
         )
         break
       }
@@ -219,42 +206,24 @@ export async function runRalph(args: RalphArgs): Promise<void> {
   // Final status
   console.log()
   if (state.isComplete) {
-    log(
-      '╔════════════════════════════════════════════════════════════╗',
-      'green'
-    )
-    log(
-      '║                    ✅ PRD COMPLETE                         ║',
-      'green'
-    )
-    log(
-      `║              All tasks finished after ${state.iteration} iterations         ║`,
-      'green'
-    )
-    log(
-      '╚════════════════════════════════════════════════════════════╝',
-      'green'
+    console.log(
+      formatBox(
+        '✅ PRD COMPLETE',
+        `All tasks finished after ${state.iteration} iterations`,
+        'neonGreen'
+      )
     )
     sendNotification(
       'Ralph Wiggum',
       `PRD complete after ${state.iteration} iterations`
     )
   } else {
-    log(
-      '╔════════════════════════════════════════════════════════════╗',
-      'yellow'
-    )
-    log(
-      '║              ⚠️  Max iterations reached                     ║',
-      'yellow'
-    )
-    log(
-      '║              PRD may not be complete                       ║',
-      'yellow'
-    )
-    log(
-      '╚════════════════════════════════════════════════════════════╝',
-      'yellow'
+    console.log(
+      formatBox(
+        '⚠️  Max iterations reached',
+        'PRD may not be complete',
+        'neonYellow'
+      )
     )
     sendNotification(
       'Ralph Wiggum',
