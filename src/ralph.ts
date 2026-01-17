@@ -163,7 +163,9 @@ export async function runRalph(args: RalphArgs): Promise<void> {
         state.iteration,
         result.taskDescription || 'Task completed',
         {
+          decisions: result.decisions,
           filesChanged: result.filesChanged,
+          notes: result.summary,
         }
       )
       appendProgress(progressPath, entry)
@@ -237,7 +239,9 @@ export async function runRalph(args: RalphArgs): Promise<void> {
  */
 function waitForEnter(): Promise<void> {
   return new Promise((resolve) => {
+    process.stdin.resume()
     process.stdin.once('data', () => {
+      process.stdin.pause()
       resolve()
     })
   })

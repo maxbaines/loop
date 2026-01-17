@@ -211,7 +211,9 @@ export async function executeTool(
       case 'read_file': {
         const result = filesystem.readFile(input.path as string, workingDir)
         if (result.success) {
-          return result.content || ''
+          // Include success indicator so display logic shows ✅ not ❌
+          const content = result.content || ''
+          return `[Read ${content.length} chars successfully]\n${content}`
         }
         return `Error: ${result.error}`
       }

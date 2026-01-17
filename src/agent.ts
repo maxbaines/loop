@@ -16,6 +16,53 @@ import { COMPLETION_MARKER } from './types.ts'
 import { formatToolCall, formatToolResult, formatFileChange } from './output.ts'
 
 /**
+ * Parse structured output from agent response
+ * Extracts task description, decisions, and summary from the formatted output
+ */
+function parseStructuredOutput(output: string): {
+  taskDescription: string
+  decisions: string[]
+  summary: string
+} {
+  const result = {
+    taskDescription: '',
+    decisions: [] as string[],
+    summary: '',
+  }
+
+  // Extract "## Completed:" task description (most reliable)
+  const completedMatch = output.match(/##\s*Completed:\s*(.+?)(?:\n|$)/i)
+  if (completedMatch) {
+    result.taskDescription = completedMatch[1].trim()
+  }
+
+  // Extract "## Changes Made" section for summary
+  const changesMadeMatch = output.match(
+    /##\s*Changes Made\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*|$)/i
+  )
+  if (changesMadeMatch) {
+    result.summary = changesMadeMatch[1].trim()
+  }
+
+  // Extract "## Decisions" section
+  const decisionsMatch = output.match(
+    /##\s*Decisions\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*Completed|$)/i
+  )
+  if (decisionsMatch) {
+    const decisionsBlock = decisionsMatch[1]
+    // Parse bullet points (- item)
+    const bulletPoints = decisionsBlock.match(/^[-*]\s+(.+)$/gm)
+    if (bulletPoints) {
+      result.decisions = bulletPoints
+        .map((line) => line.replace(/^[-*]\s+/, '').trim())
+        .filter((d) => d && d.toLowerCase() !== 'none')
+    }
+  }
+
+  return result
+}
+
+/**
  * Create the Ralph system prompt
  */
 export function createSystemPrompt(
@@ -67,9 +114,18 @@ When you have completed a task:
 1. Run all feedback loops (types, tests, lint)
 2. Make a git commit with a descriptive message
 3. Report what you did using this EXACT format:
-   "Completed: [exact task description from PRD]"
-   
-   This allows Ralph to automatically mark the task as [DONE] in the PRD file.
+
+## Changes Made
+[Brief summary of what was changed and why - 2-3 sentences]
+
+## Decisions
+- [Decision 1: why you chose this approach over alternatives]
+- [Decision 2: any tradeoffs or considerations]
+- [Add more as needed, or "None" if straightforward]
+
+## Completed: [exact task description from PRD]
+
+This structured format allows Ralph to track progress and decisions between iterations.
 
 If ALL tasks in the PRD are complete, output exactly: ${COMPLETION_MARKER}
 
@@ -88,6 +144,8 @@ export async function runIteration(
   success: boolean
   isComplete: boolean
   taskDescription?: string
+  decisions?: string[]
+  summary?: string
   filesChanged?: string[]
   error?: string
   output?: string
@@ -107,6 +165,8 @@ export async function runIteration(
 
   let fullOutput = ''
   let taskDescription = ''
+  let decisions: string[] = []
+  let summary = ''
   let filesChanged: string[] = []
   let isComplete = false
 
@@ -244,10 +304,24 @@ export async function runIteration(
       }
     }
 
+    // Parse structured output from fullOutput
+    const parsed = parseStructuredOutput(fullOutput)
+    if (parsed.taskDescription) {
+      taskDescription = parsed.taskDescription
+    }
+    if (parsed.decisions.length > 0) {
+      decisions = parsed.decisions
+    }
+    if (parsed.summary) {
+      summary = parsed.summary
+    }
+
     return {
       success: true,
       isComplete,
       taskDescription: taskDescription || 'Task completed',
+      decisions,
+      summary,
       filesChanged,
       output: fullOutput,
     }
