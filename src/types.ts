@@ -39,6 +39,13 @@ export interface PrdJson {
   items: PrdItem[]
 }
 
+// Back Pressure Check Result
+export interface BackPressureCheckResult {
+  name: string
+  passed: boolean
+  output?: string
+}
+
 // Progress Entry
 export interface ProgressEntry {
   timestamp: string
@@ -48,6 +55,7 @@ export interface ProgressEntry {
   decisions: string[]
   filesChanged: string[]
   notes?: string
+  backPressureResults?: BackPressureCheckResult[]
 }
 
 // Tool Definitions

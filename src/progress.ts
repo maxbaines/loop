@@ -4,7 +4,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, appendFileSync } from 'fs'
-import type { ProgressEntry } from './types.ts'
+import type { ProgressEntry, BackPressureCheckResult } from './types.ts'
 
 /**
  * Initialize progress file if it doesn't exist
@@ -83,6 +83,25 @@ export function loadProgress(filePath: string): ProgressEntry[] {
 export function appendProgress(filePath: string, entry: ProgressEntry): void {
   initProgressFile(filePath)
 
+  // Format back pressure results if present
+  let backPressureSection = ''
+  if (entry.backPressureResults && entry.backPressureResults.length > 0) {
+    backPressureSection = `\n### Back Pressure Results\n`
+    for (const result of entry.backPressureResults) {
+      const icon = result.passed ? '✅' : '❌'
+      backPressureSection += `- ${icon} ${result.name}: ${
+        result.passed ? 'passed' : 'FAILED'
+      }\n`
+      if (!result.passed && result.output) {
+        // Include first few lines of error output
+        const errorLines = result.output.split('\n').slice(0, 3)
+        for (const line of errorLines) {
+          backPressureSection += `  ${line}\n`
+        }
+      }
+    }
+  }
+
   const content = `
 ## Iteration ${entry.iteration} - ${entry.timestamp}
 
@@ -94,7 +113,7 @@ ${entry.decisions.map((d) => `- ${d}`).join('\n') || '- None'}
 
 ### Files Changed
 ${entry.filesChanged.map((f) => `- ${f}`).join('\n') || '- None'}
-
+${backPressureSection}
 ### Notes
 ${entry.notes || 'None'}
 
@@ -106,15 +125,52 @@ ${entry.notes || 'None'}
 
 /**
  * Get progress summary for prompt
+ * Includes back pressure results from the last iteration to ensure
+ * the agent is aware of any failures that need to be fixed
  */
-export function getProgressSummary(filePath: string): string {
+export function getProgressSummary(
+  filePath: string,
+  lastBackPressureResults?: BackPressureCheckResult[]
+): string {
   const entries = loadProgress(filePath)
 
-  if (entries.length === 0) {
-    return 'No previous progress recorded.'
+  let summary = ''
+
+  // If there are back pressure results from the last iteration, show them prominently
+  if (lastBackPressureResults && lastBackPressureResults.length > 0) {
+    const hasFailures = lastBackPressureResults.some((r) => !r.passed)
+
+    if (hasFailures) {
+      summary += '⚠️ **LAST BACK PRESSURE STATUS - FIX BEFORE CONTINUING:**\n\n'
+    } else {
+      summary += '✅ **Last Back Pressure Status:**\n\n'
+    }
+
+    for (const result of lastBackPressureResults) {
+      const icon = result.passed ? '✅' : '❌'
+      summary += `${icon} ${result.name}: ${
+        result.passed ? 'passed' : 'FAILED'
+      }\n`
+      if (!result.passed && result.output) {
+        const errorLines = result.output.split('\n').slice(0, 3)
+        for (const line of errorLines) {
+          summary += `   ${line}\n`
+        }
+      }
+    }
+
+    if (hasFailures) {
+      summary += '\n→ **Fix the failing checks before starting new work!**\n'
+    }
+
+    summary += '\n---\n\n'
   }
 
-  let summary = `Previous Progress (${entries.length} iterations):\n\n`
+  if (entries.length === 0) {
+    return summary + 'No previous progress recorded.'
+  }
+
+  summary += `Previous Progress (${entries.length} iterations):\n\n`
 
   // Show last 5 entries
   const recentEntries = entries.slice(-5)

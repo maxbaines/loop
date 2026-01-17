@@ -139,6 +139,16 @@ export const toolDefinitions: Tool[] = [
       required: [],
     },
   },
+  {
+    name: 'run_checks',
+    description:
+      'Run all back pressure checks defined in AGENTS.md (build, typecheck, lint, test, etc). Returns a summary of all check results. Use this before committing to ensure all quality gates pass.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
+    },
+  },
 
   // Git tools
   {
@@ -292,6 +302,12 @@ export async function executeTool(
           return result.stdout || result.output || 'Lint passed'
         }
         return `Lint failed: ${result.stderr || result.error}`
+      }
+
+      case 'run_checks': {
+        const { runBackPressureChecks } = await import('../backpressure.ts')
+        const results = await runBackPressureChecks(workingDir)
+        return results.summary
       }
 
       // Git tools

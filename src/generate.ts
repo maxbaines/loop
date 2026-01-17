@@ -333,68 +333,106 @@ export async function generateAndSavePrd(
 
 /**
  * System prompt for AGENTS.md generation
+ * Follows the open AGENTS.md standard (https://agents.md)
+ * Compatible with OpenAI Codex, Google Jules, GitHub Copilot, Cursor, Amp, and more
  */
-const AGENTS_GENERATION_PROMPT = `You are generating an AGENTS.md file for an autonomous AI coding agent.
+const AGENTS_GENERATION_PROMPT = `You are generating an AGENTS.md file following the open standard (https://agents.md).
 
-AGENTS.md provides project-specific guidelines that help the AI agent understand:
-- What kind of project this is
-- The tech stack and tools
-- Code standards and conventions
-- What to do and what NOT to do
+AGENTS.md is a simple, open format for guiding coding agents - think of it as a README for agents.
+It's used by 60k+ open source projects and supported by major AI coding tools.
 
 ## Output Format
 
 Generate a Markdown file with these sections:
 
-# AGENTS.md - [Project Name]
+# AGENTS.md
 
-## Project Type
-[production/prototype/library] - Brief description
+## Project overview
+Brief description of what this project is and its purpose.
 
-## Tech Stack
-- Language: [e.g., TypeScript, Python]
-- Framework: [e.g., React, FastAPI]
-- Database: [if applicable]
-- Other: [other key technologies]
+## Setup commands
+- Install deps: \`[package manager install command]\`
+- Build: \`[build command]\`
+- Run: \`[run command]\`
+- Dev server: \`[dev command if applicable]\`
 
-## Build & Run
-\`\`\`bash
-# Install dependencies
-[command]
+## Back pressure (required checks before commit)
+<!-- These commands MUST pass before any commit -->
+- Build: \`[build command]\`
+- Typecheck: \`[typecheck command]\`
+- Lint: \`[lint command]\`
+- Test: \`[test command]\`
+- Format check: \`[format check command]\` (optional)
 
-# Build
-[command]
+## Testing instructions
+- Run \`[test command]\` before committing
+- All tests must pass before merge
+- Add tests for new functionality
+- [Any project-specific testing notes]
 
-# Run
-[command]
-
-# Test
-[command]
-\`\`\`
-
-## Code Standards
-- [Standard 1]
-- [Standard 2]
-- [etc.]
+## Code style
+- [Language-specific conventions]
+- [Naming conventions]
+- [Formatting rules]
+- [Other style guidelines]
 
 ## Architecture
 \`\`\`
-[Directory structure]
+[Brief directory structure]
 \`\`\`
 
-## What TO Do
-- [Guideline 1]
-- [Guideline 2]
-
-## What NOT To Do
+## What NOT to do
 - [Anti-pattern 1]
 - [Anti-pattern 2]
+- [Common mistakes to avoid]
 
 ## Notes
-[Any additional context]
+[Any additional context for the agent]
 
-Be specific to the project. Infer from the description and any existing files.
-Return ONLY the Markdown content, no explanations.`
+## Language-Specific Back Pressure Commands
+
+Use the appropriate commands for the detected language/framework:
+
+**TypeScript/JavaScript (Node.js):**
+- Build: \`npm run build\` or \`bun run build\`
+- Typecheck: \`npx tsc --noEmit\` or \`bun run typecheck\`
+- Lint: \`npm run lint\` or \`npx eslint .\`
+- Test: \`npm test\` or \`bun test\`
+
+**Swift:**
+- Build: \`swift build\`
+- Typecheck: \`swift build\` (Swift typechecks during build)
+- Lint: \`swiftlint\` or \`swift-format lint\`
+- Test: \`swift test\`
+
+**Rust:**
+- Build: \`cargo build\`
+- Typecheck: \`cargo check\`
+- Lint: \`cargo clippy\`
+- Test: \`cargo test\`
+- Format check: \`cargo fmt --check\`
+
+**Go:**
+- Build: \`go build ./...\`
+- Typecheck: \`go build ./...\` (Go typechecks during build)
+- Lint: \`golangci-lint run\`
+- Test: \`go test ./...\`
+- Format check: \`gofmt -l .\`
+
+**Python:**
+- Typecheck: \`mypy .\` or \`pyright\`
+- Lint: \`ruff check .\` or \`flake8\`
+- Test: \`pytest\` or \`python -m pytest\`
+- Format check: \`ruff format --check .\` or \`black --check .\`
+
+**C/C++:**
+- Build: \`cmake --build build\` or \`make\`
+- Lint: \`clang-tidy\`
+- Test: \`ctest\` or \`./build/tests\`
+- Format check: \`clang-format --dry-run\`
+
+Be specific to the project. Infer the language and toolchain from the description and existing files.
+Return ONLY the Markdown content, no explanations or code blocks wrapping the output.`
 
 /**
  * Generate AGENTS.md from project description
