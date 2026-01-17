@@ -230,13 +230,21 @@ export async function runIteration(
 
           if (verbose) {
             // Determine result type based on tool result
-            const resultType = toolResult.includes('Error')
-              ? 'error'
-              : toolResult.includes('success') ||
-                toolResult.includes('passed') ||
-                toolResult.includes('completed')
-              ? 'success'
-              : 'info'
+            // Check success patterns FIRST to avoid false positives from file content containing "Error"
+            const resultType =
+              toolResult.startsWith('[Read') &&
+              toolResult.includes('successfully]')
+                ? 'success'
+                : toolResult.startsWith('Error') ||
+                  toolResult.startsWith('Tests failed') ||
+                  toolResult.startsWith('Type check failed') ||
+                  toolResult.startsWith('Lint failed')
+                ? 'error'
+                : toolResult.includes('success') ||
+                  toolResult.includes('passed') ||
+                  toolResult.includes('completed')
+                ? 'success'
+                : 'info'
 
             console.log(formatToolResult(toolResult, resultType))
 
