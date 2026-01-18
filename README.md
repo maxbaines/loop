@@ -107,7 +107,7 @@ The generator follows Matt Pocock's Loop Wiggum methodology:
 
 Loop follows the [AGENTS.md standard](https://agents.md) for AI agent configuration. When you run `loop init`, it automatically generates an `AGENTS.md` file for your project.
 
-### Back Pressure System
+### Back Pressure System (WIP)
 
 Loop reads your `AGENTS.md` file to determine which checks to run before committing changes:
 
