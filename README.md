@@ -1,64 +1,46 @@
-# Little Wiggy (# Ralph Wiggum Bun Version)🤖
+# Loop (A version of Ralph Wiggum by Geoffrey Huntley)
 
 > "Me fail English? That's unpossible!" - Ralph Wiggum
 
-**Little Wiggy** is an autonomous AI coding loop built with TypeScript and Bun, using the Claude Agent SDK directly. It compiles to a single executable for Mac, Windows, and Linux.
+**Loop** is an autonomous AI coding loop built with TypeScript and Bun, using the Claude Agent SDK directly. It compiles to a single executable for Mac, Windows, and Linux.
 
-Named after Ralph Wiggum - because like Ralph, it just keeps going until the job is done (or it gets distracted by paste). This Little Wiggy (S9E18) Imaginary leprechaun tells him to "burn things" (no food).
-
-## Features
-
-- **Single executable** - Bun compiles to native binaries
-- **Cross-platform** - Mac, Windows, Linux from one codebase
-- **No Claude Code dependency** - Direct API access via Claude Agent SDK
-- **Full tool support** - File operations, terminal commands, git
-- **PRD support** - JSON and Markdown formats
-- **Progress tracking** - Maintains state between iterations
+Named after Ralph Wiggum - because like Ralph, it just keeps going until the job is done.
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-bun install
-
-# Run with help
-bun run src/index.ts --help
+# Download the binary for your platform from releases, or build from source
+# Then run with a task:
 
 # Generate a PRD from a description
-bun run src/index.ts init "Build a CLI todo app with add, list, complete commands"
+loop init "Build a CLI todo app with add, list, complete commands"
 
 # Run iterations to implement the PRD
-bun run src/index.ts 5 --hitl
+loop 5 --hitl
 ```
 
-## PRD Generator
-
-Little Wiggy can generate structured PRDs from natural language descriptions using Claude:
+## Usage
 
 ```bash
-# Basic PRD generation
-wiggy init "Build a REST API for user authentication"
+# Run with iterations
+./loop 5
 
-# Analyze existing codebase for context
-wiggy init "Add tests for all endpoints" --analyze
+# HITL mode (pause between iterations for human review)
+./loop 10 --hitl
 
-# Output as Markdown
-wiggy init "Create a dashboard UI" --markdown
+# Custom config file
+./loop 5 --config my.config.json
 
-# Custom output file
-wiggy init "Refactor database layer" --output plans/db-refactor.json
+# Show help
+./loop --help
+
+# Show version
+./loop --version
 ```
-
-The generator follows Matt Pocock's Ralph Wiggum methodology:
-
-- **Prioritizes by type**: Architecture first, polish last
-- **Atomic tasks**: Each task completable in one iteration
-- **Acceptance criteria**: Specific, verifiable steps
-- **Explicit scope**: No room for shortcuts
 
 ## Configuration
 
-Ralph looks for configuration in this order:
+Loop looks for configuration in this order:
 
 1. **Environment variables** (highest priority)
 2. **Config file** (`ralph.config.json`)
@@ -96,9 +78,101 @@ Create `ralph.config.json`:
 }
 ```
 
-## Building Executables
+## PRD Generator
+
+Loop can generate structured PRDs from natural language descriptions using Claude:
 
 ```bash
+# Basic PRD generation
+loop init "Build a REST API for user authentication"
+
+# Analyze existing codebase for context
+loop init "Add tests for all endpoints" --analyze
+
+# Output as Markdown
+loop init "Create a dashboard UI" --markdown
+
+# Custom output file
+loop init "Refactor database layer" --output plans/db-refactor.json
+```
+
+The generator follows Matt Pocock's Loop Wiggum methodology:
+
+- **Prioritizes by type**: Architecture first, polish last
+- **Atomic tasks**: Each task completable in one iteration
+- **Acceptance criteria**: Specific, verifiable steps
+- **Explicit scope**: No room for shortcuts
+
+## AGENTS.md & Back Pressure
+
+Loop follows the [AGENTS.md standard](https://agents.md) for AI agent configuration. When you run `loop init`, it automatically generates an `AGENTS.md` file for your project.
+
+### Back Pressure System
+
+Loop reads your `AGENTS.md` file to determine which checks to run before committing changes:
+
+```markdown
+## Back pressure
+
+- Build: `swift build`
+- Typecheck: `bun run typecheck`
+- Lint: `bun run lint`
+- Test: `bun test`
+```
+
+These checks are automatically run to ensure code quality. If no `AGENTS.md` is found, Loop falls back to auto-detecting common check commands (typecheck, lint, test).
+
+## PRD Files
+
+Loop PRD Markdown format:
+
+```markdown
+## Tasks
+
+### High Priority
+
+- [ ] **Set up database schema**
+  - Create migrations
+  - Add indexes
+```
+
+## Tools Available
+
+Loop has access to these tools:
+
+| Tool              | Description                            |
+| ----------------- | -------------------------------------- |
+| `read_file`       | Read file contents                     |
+| `write_file`      | Write/create files                     |
+| `list_files`      | List directory contents                |
+| `search_files`    | Search for patterns in files           |
+| `execute_command` | Run shell commands                     |
+| `run_tests`       | Run test suite                         |
+| `run_typecheck`   | Run type checking                      |
+| `run_lint`        | Run linter                             |
+| `run_checks`      | Run all AGENTS.md back pressure checks |
+| `git_status`      | Get git status                         |
+| `git_commit`      | Stage and commit changes               |
+| `git_diff`        | Get diff of changes                    |
+| `git_log`         | Get recent commits                     |
+
+## Features
+
+- **Single executable** - Bun compiles to native binaries
+- **Cross-platform** - Mac, Windows, Linux from one codebase
+- **No Claude Code dependency** - Direct API access via Claude Agent SDK
+- **Full tool support** - File operations, terminal commands, git
+- **AGENTS.md support** - Follows the open standard for AI agent configuration
+- **Back pressure** - Automatic quality checks before commits
+- **PRD support** - JSON and Markdown formats
+- **Progress tracking** - Maintains state between iterations
+
+## Building from Source
+
+```bash
+# Install dependencies
+bun install
+
 # Build for current platform
 bun run build
 
@@ -113,78 +187,6 @@ bun run build:windows  # Windows x64
 ```
 
 Executables are output to `dist/`.
-
-## Usage
-
-```bash
-# Run with iterations
-./ralph 5
-
-# HITL mode (pause between iterations)
-./ralph 10 --hitl
-
-# Custom config file
-./ralph 5 --config my.config.json
-
-# Show help
-./ralph --help
-
-# Show version
-./ralph --version
-```
-
-## PRD Files
-
-Ralph supports two PRD formats:
-
-### JSON Format
-
-```json
-{
-  "name": "My Feature",
-  "items": [
-    {
-      "id": "1",
-      "category": "architecture",
-      "description": "Set up database schema",
-      "steps": ["Create migrations", "Add indexes"],
-      "priority": "high",
-      "passes": false
-    }
-  ]
-}
-```
-
-### Markdown Format
-
-```markdown
-## Tasks
-
-### High Priority
-
-- [ ] **Set up database schema**
-  - Create migrations
-  - Add indexes
-```
-
-## Tools Available
-
-Ralph has access to these tools:
-
-| Tool              | Description                  |
-| ----------------- | ---------------------------- |
-| `read_file`       | Read file contents           |
-| `write_file`      | Write/create files           |
-| `list_files`      | List directory contents      |
-| `search_files`    | Search for patterns in files |
-| `execute_command` | Run shell commands           |
-| `run_tests`       | Run test suite               |
-| `run_typecheck`   | Run type checking            |
-| `run_lint`        | Run linter                   |
-| `git_status`      | Get git status               |
-| `git_commit`      | Stage and commit changes     |
-| `git_diff`        | Get diff of changes          |
-| `git_log`         | Get recent commits           |
 
 ## Development
 
@@ -202,13 +204,15 @@ bun test
 ## Project Structure
 
 ```
-little-wiggy/
+loop/
 ├── src/
 │   ├── index.ts          # CLI entry point
 │   ├── ralph.ts          # Main loop logic
 │   ├── agent.ts          # Claude Agent SDK wrapper
+│   ├── backpressure.ts   # AGENTS.md back pressure system
 │   ├── config.ts         # Configuration loading
 │   ├── generate.ts       # PRD generator (AI-powered)
+│   ├── output.ts         # Centralized output formatting
 │   ├── prd.ts            # PRD file parsing
 │   ├── progress.ts       # Progress tracking
 │   ├── types.ts          # TypeScript types
@@ -217,7 +221,7 @@ little-wiggy/
 │       ├── filesystem.ts # File operations
 │       ├── terminal.ts   # Command execution
 │       └── git.ts        # Git operations
-├── test/                 # Example project (Hello World Mac app)
+├── example/              # Example project
 ├── package.json
 ├── tsconfig.json
 └── .env.example
