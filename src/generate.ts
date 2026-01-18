@@ -334,105 +334,116 @@ export async function generateAndSavePrd(
 /**
  * System prompt for AGENTS.md generation
  * Follows the open AGENTS.md standard (https://agents.md)
- * Compatible with OpenAI Codex, Google Jules, GitHub Copilot, Cursor, Amp, and more
  */
-const AGENTS_GENERATION_PROMPT = `You are generating an AGENTS.md file following the open standard (https://agents.md).
+const AGENTS_GENERATION_PROMPT = `Generate an AGENTS.md file for AI coding agents.
 
-AGENTS.md is a simple, open format for guiding coding agents - think of it as a README for agents.
-It's used by 60k+ open source projects and supported by major AI coding tools.
-
-## Output Format
-
-Generate a Markdown file with these sections:
+## Required Sections
 
 # AGENTS.md
 
 ## Project overview
-Brief description of what this project is and its purpose.
+[One sentence: what this project does]
 
 ## Setup commands
-- Install deps: \`[package manager install command]\`
-- Build: \`[build command]\`
-- Run: \`[run command]\`
-- Dev server: \`[dev command if applicable]\`
+- Install: \`[command]\`
+- Build: \`[command]\`
+- Run: \`[command]\`
 
 ## Back pressure (required checks before commit)
-<!-- These commands MUST pass before any commit -->
-- Build: \`[build command]\`
-- Typecheck: \`[typecheck command]\`
-- Lint: \`[lint command]\`
-- Test: \`[test command]\`
-- Format check: \`[format check command]\` (optional)
+- Build: \`[command]\`
+- Typecheck: \`[command]\`
+- Lint: \`[command]\`
+- Test: \`[command]\`
 
 ## Testing instructions
-- Run \`[test command]\` before committing
+- [How to run tests]
 - All tests must pass before merge
-- Add tests for new functionality
-- [Any project-specific testing notes]
 
 ## Code style
-- [Language-specific conventions]
-- [Naming conventions]
-- [Formatting rules]
-- [Other style guidelines]
-
-## Architecture
-\`\`\`
-[Brief directory structure]
-\`\`\`
+- [Key conventions for this language/framework]
 
 ## What NOT to do
-- [Anti-pattern 1]
-- [Anti-pattern 2]
-- [Common mistakes to avoid]
+- Don't skip tests
+- Don't commit with failing checks
+- [Project-specific anti-patterns]
 
-## Notes
-[Any additional context for the agent]
+## Rules
 
-## Language-Specific Back Pressure Commands
+1. Output ONLY Markdown - no code block wrappers
+2. Include ALL sections above
+3. Use actual commands for the detected project type
+4. Back pressure section is critical - always include real commands
+5. NEVER hardcode specific paths, project names, or scheme names in commands
+   - Use generic commands that work from the project root
+   - For Xcode: use \`xcodebuild\` without -project flag (auto-discovers .xcodeproj)
+   - For Swift Package Manager: use \`swift build\` and \`swift test\`
+   - Commands should work regardless of subfolder structure`
 
-Use the appropriate commands for the detected language/framework:
+/**
+ * Detect project type from files
+ */
+function detectProjectType(files: string[]): string {
+  const fileSet = new Set(files.map((f) => f.toLowerCase()))
 
-**TypeScript/JavaScript (Node.js):**
-- Build: \`npm run build\` or \`bun run build\`
-- Typecheck: \`npx tsc --noEmit\` or \`bun run typecheck\`
-- Lint: \`npm run lint\` or \`npx eslint .\`
-- Test: \`npm test\` or \`bun test\`
+  if (
+    files.some(
+      (f) => f.endsWith('Package.swift') || f.includes('Package.swift')
+    )
+  ) {
+    return 'Swift (Package.swift detected)'
+  }
+  if (files.some((f) => f.endsWith('Cargo.toml') || f.includes('Cargo.toml'))) {
+    return 'Rust (Cargo.toml detected)'
+  }
+  if (
+    files.some((f) => f.endsWith('package.json') || f.includes('package.json'))
+  ) {
+    const hasTsConfig = files.some(
+      (f) => f.endsWith('tsconfig.json') || f.includes('tsconfig.json')
+    )
+    return hasTsConfig
+      ? 'TypeScript/Node.js (package.json + tsconfig.json detected)'
+      : 'JavaScript/Node.js (package.json detected)'
+  }
+  if (files.some((f) => f.endsWith('go.mod') || f.includes('go.mod'))) {
+    return 'Go (go.mod detected)'
+  }
+  if (
+    files.some(
+      (f) =>
+        f.endsWith('pyproject.toml') ||
+        f.includes('pyproject.toml') ||
+        f.endsWith('requirements.txt') ||
+        f.includes('requirements.txt')
+    )
+  ) {
+    return 'Python (pyproject.toml or requirements.txt detected)'
+  }
+  if (
+    files.some(
+      (f) =>
+        f.endsWith('CMakeLists.txt') ||
+        f.includes('CMakeLists.txt') ||
+        f.endsWith('Makefile') ||
+        f.includes('Makefile')
+    )
+  ) {
+    return 'C/C++ (CMakeLists.txt or Makefile detected)'
+  }
 
-**Swift:**
-- Build: \`swift build\`
-- Typecheck: \`swift build\` (Swift typechecks during build)
-- Lint: \`swiftlint\` or \`swift-format lint\`
-- Test: \`swift test\`
+  // Check by file extensions
+  if (files.some((f) => f.endsWith('.swift'))) return 'Swift'
+  if (files.some((f) => f.endsWith('.rs'))) return 'Rust'
+  if (files.some((f) => f.endsWith('.ts') || f.endsWith('.tsx')))
+    return 'TypeScript'
+  if (files.some((f) => f.endsWith('.js') || f.endsWith('.jsx')))
+    return 'JavaScript'
+  if (files.some((f) => f.endsWith('.go'))) return 'Go'
+  if (files.some((f) => f.endsWith('.py'))) return 'Python'
+  if (files.some((f) => f.endsWith('.c') || f.endsWith('.cpp'))) return 'C/C++'
 
-**Rust:**
-- Build: \`cargo build\`
-- Typecheck: \`cargo check\`
-- Lint: \`cargo clippy\`
-- Test: \`cargo test\`
-- Format check: \`cargo fmt --check\`
-
-**Go:**
-- Build: \`go build ./...\`
-- Typecheck: \`go build ./...\` (Go typechecks during build)
-- Lint: \`golangci-lint run\`
-- Test: \`go test ./...\`
-- Format check: \`gofmt -l .\`
-
-**Python:**
-- Typecheck: \`mypy .\` or \`pyright\`
-- Lint: \`ruff check .\` or \`flake8\`
-- Test: \`pytest\` or \`python -m pytest\`
-- Format check: \`ruff format --check .\` or \`black --check .\`
-
-**C/C++:**
-- Build: \`cmake --build build\` or \`make\`
-- Lint: \`clang-tidy\`
-- Test: \`ctest\` or \`./build/tests\`
-- Format check: \`clang-format --dry-run\`
-
-Be specific to the project. Infer the language and toolchain from the description and existing files.
-Return ONLY the Markdown content, no explanations or code blocks wrapping the output.`
+  return 'Unknown'
+}
 
 /**
  * Generate AGENTS.md from project description
@@ -450,15 +461,64 @@ export async function generateAgentsMd(
     timeout: 5 * 60 * 1000,
   })
 
-  let context = `## Project Description\n${description}\n\n`
+  // Detect project type
+  const projectType = options.existingFiles
+    ? detectProjectType(options.existingFiles)
+    : 'Unknown'
+
+  // Build a more structured user message
+  let userMessage = `Generate a complete AGENTS.md file for this project.
+
+IMPORTANT: Your output MUST include ALL required sections (Project overview, Setup commands, Back pressure, Testing instructions, Code style, What NOT to do). Do NOT just output a file tree.
+
+## Project Information
+
+**Description:** ${
+    description || 'Analyze this project and generate appropriate AGENTS.md'
+  }
+
+**Detected Project Type:** ${projectType}
+`
 
   if (options.existingFiles && options.existingFiles.length > 0) {
-    context += `## Existing Files\n${options.existingFiles.join('\n')}\n\n`
+    // Summarize files instead of listing all
+    const fileCount = options.existingFiles.length
+    const keyFiles = options.existingFiles
+      .filter(
+        (f) =>
+          f.endsWith('Package.swift') ||
+          f.endsWith('package.json') ||
+          f.endsWith('Cargo.toml') ||
+          f.endsWith('go.mod') ||
+          f.endsWith('pyproject.toml') ||
+          f.endsWith('CMakeLists.txt') ||
+          f.endsWith('Makefile') ||
+          f.endsWith('README.md') ||
+          f.endsWith('.swift') ||
+          f.endsWith('.ts') ||
+          f.endsWith('.rs') ||
+          f.endsWith('.go') ||
+          f.endsWith('.py')
+      )
+      .slice(0, 20) // Limit to 20 key files
+
+    userMessage += `
+**Project has ${fileCount} files. Key files include:**
+${keyFiles.join('\n')}
+`
   }
 
   if (options.projectDocs) {
-    context += `## Existing Documentation\n${options.projectDocs}\n\n`
+    // Include first 500 chars of README
+    const docPreview = options.projectDocs.slice(0, 500)
+    userMessage += `
+**README excerpt:**
+${docPreview}${options.projectDocs.length > 500 ? '...' : ''}
+`
   }
+
+  userMessage += `
+Now generate the complete AGENTS.md file with all required sections.`
 
   const response = await client.messages.create({
     model: config.model,
@@ -467,7 +527,7 @@ export async function generateAgentsMd(
     messages: [
       {
         role: 'user',
-        content: `Generate an AGENTS.md file for this project:\n\n${context}`,
+        content: userMessage,
       },
     ],
   })
