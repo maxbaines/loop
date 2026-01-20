@@ -119,7 +119,7 @@ export function validateConfig(config: RalphConfig): string[] {
 
   if (!config.apiKey) {
     errors.push(
-      'ANTHROPIC_API_KEY is required. Set it in environment, .env file, or ralph.config.json'
+      'ANTHROPIC_API_KEY is required. Set it in environment, .env file, or ralph.config.json',
     )
   }
 
@@ -138,7 +138,7 @@ export function validateConfig(config: RalphConfig): string[] {
  * Find PRD file in common locations
  */
 export function findPrdFile(workingDir: string): string | null {
-  const locations = ['plans/prd.md', 'prd.md']
+  const locations = ['do.md', 'plans/prd.md', 'prd.md']
 
   for (const loc of locations) {
     const fullPath = join(workingDir, loc)

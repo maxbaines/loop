@@ -40,6 +40,14 @@ loop 5 --hitl
 #   - Move to the next task
 #   - Pause for your review (--hitl = human-in-the-loop)
 #   - Repeat for up to 5 iterations
+
+# Or use 'do' for one-off tasks (generates PRD and runs it immediately)
+loop do "Fix current build errors and package as an app"
+# Loop will:
+#   - Analyze the codebase for context
+#   - Generate a PRD with tasks to accomplish the goal
+#   - Immediately start executing the tasks
+#   - Run until complete or max iterations reached
 ```
 
 ### Key Concepts
@@ -58,6 +66,10 @@ loop 5 --hitl
 # Download the binary for your platform from releases, or build from source
 # Then run with a task:
 
+# One-off task - generate PRD and run immediately
+loop do "Fix build errors and package as an app"
+
+# Or the two-step approach:
 # Generate a PRD from a description
 loop init "Build a CLI todo app with add, list, complete commands"
 
@@ -68,7 +80,12 @@ loop 5 --hitl
 ## Usage
 
 ```bash
-# Run with iterations
+# One-off task (generates PRD and runs to completion)
+./loop do "Add user authentication"
+./loop do "Refactor database layer" --hitl
+./loop do "Fix all TypeScript errors" --max 10
+
+# Run with iterations (requires existing PRD)
 ./loop 5
 
 # HITL mode (pause between iterations for human review)

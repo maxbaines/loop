@@ -80,6 +80,7 @@ Usage: wiggy [command] [options]
 Commands:
   run [iterations]    Run the coding loop (default command)
   init <description>  Generate a PRD from a description
+  do <description>    Generate a PRD and run it to completion (one-off task)
 
 Run Options:
   -h, --help          Show this help message
@@ -93,11 +94,18 @@ Init Options:
   --analyze           Analyze existing codebase for context
   --output FILE       Output file (default: prd.md)
 
+Do Options:
+  --hitl              Human-in-the-loop mode (pause between iterations)
+  --max N             Maximum iterations (default: task count + 2)
+  -c, --config FILE   Path to config file (default: ralph.config.json)
+
 Examples:
   wiggy 5             Run 5 iterations
   wiggy 10 --hitl     Run 10 iterations with HITL pauses
   wiggy init "Build a REST API for user authentication"
   wiggy init "Add tests for all endpoints" --analyze
+  wiggy do "Fix build errors and package as an app"
+  wiggy do "Add dark mode support" --hitl
 
 Configuration:
   Ralph looks for configuration in this order:
@@ -117,7 +125,8 @@ Configuration:
     RALPH_VERBOSE       Enable verbose logging (default: false)
 
 PRD Files:
-  Ralph looks for PRD files in this order:
+  Loop looks for PRD files in this order:
+  - do.md (created by 'do' command)
   - plans/prd.md
   - prd.md
 
@@ -205,13 +214,98 @@ async function handleInit(args: string[]): Promise<void> {
     console.log(`   - Low: ${low}`)
     console.log('')
     console.log(
-      `🚀 Run 'wiggy ${prd.items.length}' to start working through the PRD`
+      `🚀 Run 'wiggy ${prd.items.length}' to start working through the PRD`,
     )
   } catch (error) {
     console.error(
       'Error generating PRD:',
-      error instanceof Error ? error.message : error
+      error instanceof Error ? error.message : error,
     )
+    process.exit(1)
+  }
+}
+
+/**
+ * Handle do command - generate PRD and run it to completion
+ */
+async function handleDo(args: string[]): Promise<void> {
+  let description = ''
+  let hitl = false
+  let maxIterations: number | undefined
+  let configFile: string | undefined
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]
+    switch (arg) {
+      case '--hitl':
+        hitl = true
+        break
+      case '--max':
+        maxIterations = parseInt(args[++i], 10)
+        break
+      case '-c':
+      case '--config':
+        configFile = args[++i]
+        break
+      default:
+        // Collect description (non-flag arguments)
+        if (!arg.startsWith('-')) {
+          description += (description ? ' ' : '') + arg
+        }
+        break
+    }
+  }
+
+  if (!description) {
+    console.error('Error: Please provide a task description')
+    console.error('Usage: wiggy do "Your task description"')
+    process.exit(1)
+  }
+
+  console.log('╔════════════════════════════════════════════════════════════╗')
+  console.log('║                    🤖 Little Wiggy                         ║')
+  console.log('║                   One-Off Task: DO                         ║')
+  console.log('╚════════════════════════════════════════════════════════════╝')
+  console.log('')
+
+  try {
+    const config = loadConfig(configFile)
+
+    console.log(`📝 Description: ${description}`)
+    console.log(`🔍 Analyzing codebase for context...`)
+    console.log('')
+
+    // Generate PRD and AGENTS.md with codebase analysis
+    const { prd } = await generateProjectFiles(description, config, {
+      prdPath: 'do.md',
+      agentsPath: 'AGENTS.md',
+      analyzeCodebase: true,
+      verbose: true,
+    })
+
+    console.log('')
+    console.log('📋 Generated PRD:')
+    console.log(`   Name: ${prd.name}`)
+    console.log(`   Tasks: ${prd.items.length}`)
+    console.log('')
+
+    // Calculate iterations: task count + 2 buffer, or use --max if provided
+    const iterations = maxIterations || prd.items.length + 2
+
+    console.log(`🚀 Starting execution (${iterations} iterations max)...`)
+    console.log('')
+
+    // Run the loop
+    await runRalph({
+      iterations,
+      hitl,
+      sandbox: false,
+      help: false,
+      version: false,
+      configFile,
+    })
+  } catch (error) {
+    console.error('Error:', error instanceof Error ? error.message : error)
     process.exit(1)
   }
 }
@@ -226,6 +320,12 @@ async function main(): Promise<void> {
   // Check for init command
   if (rawArgs[0] === 'init') {
     await handleInit(rawArgs.slice(1))
+    return
+  }
+
+  // Check for do command
+  if (rawArgs[0] === 'do') {
+    await handleDo(rawArgs.slice(1))
     return
   }
 
@@ -251,7 +351,7 @@ async function main(): Promise<void> {
   if (args.sandbox) {
     console.log('Note: Sandbox mode is not yet implemented in the Bun version.')
     console.log(
-      'For sandboxed execution, use Docker or the shell script version.'
+      'For sandboxed execution, use Docker or the shell script version.',
     )
   }
 
@@ -260,7 +360,7 @@ async function main(): Promise<void> {
   } catch (error) {
     console.error(
       'Fatal error:',
-      error instanceof Error ? error.message : error
+      error instanceof Error ? error.message : error,
     )
     process.exit(1)
   }
