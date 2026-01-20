@@ -1,35 +1,54 @@
 # syntax=docker/dockerfile:1
 
-# Base image with Bun runtime
-FROM oven/bun:1 AS base
-WORKDIR /app
+# Base image with common development tools
+FROM ubuntu:22.04
 
-# Install dependencies only
-FROM base AS install
-COPY package.json bun.lockb ./
-RUN bun install --frozen-lockfile --production
+# Avoid prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Production image
-FROM base AS release
+# Install essential packages and SSH server
+RUN apt-get update && apt-get install -y \
+    openssh-server \
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    htop \
+    unzip \
+    sudo \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy dependencies from install stage
-COPY --from=install /app/node_modules ./node_modules
+# Install Bun
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
 
-# Copy source files
-COPY src ./src
-COPY package.json tsconfig.json ./
+# Configure SSH
+RUN mkdir /var/run/sshd \
+    && echo 'root:loop' | chpasswd \
+    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Set default environment variables
-ENV RALPH_WORKING_DIR=/workspace
-ENV RALPH_PROGRESS_FILE=progress.txt
-ENV RALPH_VERBOSE=false
+# SSH port
+EXPOSE 22
 
 # Create workspace directory
 RUN mkdir -p /workspace
-
-# Working directory for projects
-VOLUME /workspace
 WORKDIR /workspace
 
-# Run the application
-ENTRYPOINT ["bun", "run", "/app/src/index.ts"]
+# Copy loop application
+COPY package.json bun.lockb /app/
+WORKDIR /app
+RUN bun install --frozen-lockfile --production
+COPY src /app/src
+COPY tsconfig.json /app/
+
+# Add loop to PATH
+RUN echo 'alias loop="bun run /app/src/index.ts"' >> /root/.bashrc
+
+# Set workspace as default directory
+WORKDIR /workspace
+
+# Start SSH daemon
+CMD ["/usr/sbin/sshd", "-D"]
