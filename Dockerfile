@@ -32,6 +32,10 @@ RUN curl -L -o /usr/local/bin/ttyd \
 # Web terminal port
 EXPOSE 7681
 
+# Default credentials (override with environment variables)
+ENV TTYD_USER=admin
+ENV TTYD_PASSWORD=loop
+
 # Create workspace directory
 RUN mkdir -p /workspace
 WORKDIR /workspace

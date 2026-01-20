@@ -2,6 +2,8 @@
 # Terminal control script for ttyd web terminal
 
 TTYD_PORT=${TTYD_PORT:-7681}
+TTYD_USER=${TTYD_USER:-admin}
+TTYD_PASSWORD=${TTYD_PASSWORD:-loop}
 TTYD_PID_FILE="/var/run/ttyd.pid"
 
 start_terminal() {
@@ -11,7 +13,9 @@ start_terminal() {
     fi
     
     echo "Starting web terminal on port $TTYD_PORT..."
-    ttyd -W -p $TTYD_PORT bash &
+    echo "  Username: $TTYD_USER"
+    echo "  Password: $TTYD_PASSWORD"
+    ttyd -W -p $TTYD_PORT -c "$TTYD_USER:$TTYD_PASSWORD" bash &
     echo $! > $TTYD_PID_FILE
     sleep 1
     
