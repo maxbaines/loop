@@ -14,7 +14,7 @@ Loop operates as an **autonomous coding agent** that iteratively works through t
 
 Each iteration follows this pattern:
 
-1. **Read PRD** - Loop reads your `prd.md` or `prd.json` file to understand what needs to be built
+1. **Read PRD** - Loop reads your `prd.md` file to understand what needs to be built
 2. **Check Progress** - Reviews `progress.txt` to see what's already been completed
 3. **Pick a Task** - Selects the next uncompleted task from the PRD
 4. **Execute** - Uses available tools (file operations, terminal commands, git) to implement the task
