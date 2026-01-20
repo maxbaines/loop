@@ -15,7 +15,7 @@ start_terminal() {
     echo "Starting web terminal on port $TTYD_PORT..."
     echo "  Username: $TTYD_USER"
     echo "  Password: $TTYD_PASSWORD"
-    ttyd -W -p $TTYD_PORT -c "$TTYD_USER:$TTYD_PASSWORD" bash &
+    ttyd -W -p $TTYD_PORT -c "$TTYD_USER:$TTYD_PASSWORD" /bin/bash -l &
     echo $! > $TTYD_PID_FILE
     sleep 1
     
