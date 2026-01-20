@@ -6,9 +6,8 @@ FROM ubuntu:22.04
 # Avoid prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install essential packages and SSH server
+# Install essential packages
 RUN apt-get update && apt-get install -y \
-    openssh-server \
     curl \
     wget \
     git \
@@ -18,20 +17,20 @@ RUN apt-get update && apt-get install -y \
     unzip \
     sudo \
     ca-certificates \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Bun
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
-# Configure SSH
-RUN mkdir /var/run/sshd \
-    && echo 'root:loop' | chpasswd \
-    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
-    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+# Install ttyd for web terminal
+RUN curl -L -o /usr/local/bin/ttyd \
+    https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 \
+    && chmod +x /usr/local/bin/ttyd
 
-# SSH port
-EXPOSE 22
+# Web terminal port
+EXPOSE 7681
 
 # Create workspace directory
 RUN mkdir -p /workspace
@@ -51,8 +50,13 @@ RUN bun run build:linux
 RUN cp /app/dist/loop-linux-x64/loop /usr/local/bin/loop \
     && chmod +x /usr/local/bin/loop
 
+# Copy helper scripts
+COPY docker/terminal.sh /usr/local/bin/terminal.sh
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/terminal.sh /usr/local/bin/entrypoint.sh
+
 # Set workspace as default directory
 WORKDIR /workspace
 
-# Start SSH daemon
-CMD ["/usr/sbin/sshd", "-D"]
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
