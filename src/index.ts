@@ -395,6 +395,66 @@ dist/
   writeFileSync(join(projDir, '.gitignore'), gitignore)
   console.log('   ✓ Created .gitignore')
 
+  // Copy Dockerfile and docker scripts for sandbox support
+  const possibleDockerfilePaths = [
+    join(process.cwd(), 'Dockerfile'),
+    join(dirname(currentBinary || ''), 'Dockerfile'),
+    join(dirname(currentBinary || ''), '..', 'Dockerfile'),
+    '/usr/local/share/loop/Dockerfile',
+  ]
+
+  let dockerfileSrc: string | null = null
+  for (const p of possibleDockerfilePaths) {
+    if (existsSync(p)) {
+      dockerfileSrc = p
+      break
+    }
+  }
+
+  if (dockerfileSrc) {
+    copyFileSync(dockerfileSrc, join(projDir, 'Dockerfile'))
+    console.log('   ✓ Copied Dockerfile')
+
+    // Also copy entrypoint.sh and terminal.sh from the same docker directory
+    const dockerDir = dirname(dockerfileSrc)
+    const entrypointSrc = join(dockerDir, 'docker', 'entrypoint.sh')
+    const terminalSrc = join(dockerDir, 'docker', 'terminal.sh')
+
+    // Try alternate paths if docker/ subdirectory doesn't exist
+    const entrypointPaths = [
+      entrypointSrc,
+      join(dockerDir, 'entrypoint.sh'),
+      join(process.cwd(), 'docker', 'entrypoint.sh'),
+    ]
+    const terminalPaths = [
+      terminalSrc,
+      join(dockerDir, 'terminal.sh'),
+      join(process.cwd(), 'docker', 'terminal.sh'),
+    ]
+
+    for (const p of entrypointPaths) {
+      if (existsSync(p)) {
+        copyFileSync(p, join(projDir, 'docker', 'entrypoint.sh'))
+        spawnSync('chmod', ['+x', join(projDir, 'docker', 'entrypoint.sh')])
+        console.log('   ✓ Copied docker/entrypoint.sh')
+        break
+      }
+    }
+
+    for (const p of terminalPaths) {
+      if (existsSync(p)) {
+        copyFileSync(p, join(projDir, 'docker', 'terminal.sh'))
+        spawnSync('chmod', ['+x', join(projDir, 'docker', 'terminal.sh')])
+        console.log('   ✓ Copied docker/terminal.sh')
+        break
+      }
+    }
+  } else {
+    console.log(
+      '   ⚠ Could not find Dockerfile to copy (sandbox will not work)',
+    )
+  }
+
   console.log('')
   console.log('✅ Project created successfully!')
   console.log('')
@@ -455,11 +515,13 @@ async function handleSandbox(args: string[]): Promise<void> {
   // Always rebuild the image
   console.log('⏳ Building fresh Docker image...')
 
-  // Find Dockerfile
+  // Find Dockerfile - use getBinaryPath for compiled binaries
+  const currentBinary = getBinaryPath()
   const possibleDockerfiles = [
     join(process.cwd(), 'Dockerfile'),
-    join(dirname(process.argv[1] || ''), 'Dockerfile'),
-    join(dirname(process.argv[1] || ''), '..', 'Dockerfile'),
+    join(dirname(currentBinary || ''), 'Dockerfile'),
+    join(dirname(currentBinary || ''), '..', 'Dockerfile'),
+    '/usr/local/share/loop/Dockerfile',
   ]
 
   let dockerfilePath: string | null = null
@@ -475,6 +537,8 @@ async function handleSandbox(args: string[]): Promise<void> {
   if (!dockerfilePath || !dockerContext) {
     console.error('❌ Dockerfile not found')
     console.error('   Make sure you have a Dockerfile in the project.')
+    console.error('   Searched in:')
+    possibleDockerfiles.forEach((p) => console.error(`     - ${p}`))
     process.exit(1)
   }
 
