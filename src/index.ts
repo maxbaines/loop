@@ -8,6 +8,15 @@ import type { RalphArgs } from './types.ts'
 import { runRalph } from './ralph.ts'
 import { generateProjectFiles } from './generate.ts'
 import { loadConfig } from './config.ts'
+import {
+  existsSync,
+  mkdirSync,
+  copyFileSync,
+  writeFileSync,
+  readFileSync,
+} from 'fs'
+import { join, dirname } from 'path'
+import { spawnSync } from 'child_process'
 
 const VERSION = '1.0.0'
 
@@ -77,21 +86,23 @@ function parseArgs(args: string[]): RalphArgs {
  */
 function printHelp(): void {
   console.log(`
-Little Wiggy - Autonomous AI Coding Loop
+Loop - Autonomous AI Coding Agent
 
-Usage: wiggy [command] [options]
+Usage: loop [command] [options]
 
 Commands:
   run [iterations]    Run the coding loop (default command)
   init <description>  Generate a PRD from a description
   do <description>    Generate a PRD and run it to completion (one-off task)
+  new <name>          Create a new project folder in proj/
+  sandbox <name>      Launch a fresh Docker sandbox (rebuilds image)
+  global              Install loop globally to /usr/local/bin
 
 Run Options:
   -h, --help          Show this help message
   -v, --version       Show version number
   -n, --iterations N  Number of iterations to run
   --hitl              Human-in-the-loop mode (pause between iterations)
-  --sandbox <name>    Run in Docker sandbox (creates/attaches to named container)
   -c, --config FILE   Path to config file (default: ralph.config.json)
 
 Init Options:
@@ -104,16 +115,18 @@ Do Options:
   -c, --config FILE   Path to config file (default: ralph.config.json)
 
 Examples:
-  wiggy 5             Run 5 iterations
-  wiggy 10 --hitl     Run 10 iterations with HITL pauses
-  wiggy --sandbox myproject   Create/attach to sandbox 'loop-myproject'
-  wiggy init "Build a REST API for user authentication"
-  wiggy init "Add tests for all endpoints" --analyze
-  wiggy do "Fix build errors and package as an app"
-  wiggy do "Add dark mode support" --hitl
+  loop 5                  Run 5 iterations
+  loop 10 --hitl          Run 10 iterations with HITL pauses
+  loop new myproject      Create proj/myproject with all needed files
+  loop sandbox myproject  Launch fresh Docker sandbox 'loop-myproject'
+  loop global             Install loop globally (requires sudo)
+  loop init "Build a REST API for user authentication"
+  loop init "Add tests for all endpoints" --analyze
+  loop do "Fix build errors and package as an app"
+  loop do "Add dark mode support" --hitl
 
 Configuration:
-  Ralph looks for configuration in this order:
+  Loop looks for configuration in this order:
   1. Environment variables (ANTHROPIC_API_KEY, RALPH_MODEL, etc.)
   2. Config file (ralph.config.json)
   3. .env file
@@ -135,7 +148,7 @@ PRD Files:
   - plans/prd.md
   - prd.md
 
-For more information, visit: https://github.com/maxbaines/ralph
+For more information, visit: https://github.com/maxbaines/loop
 `)
 }
 
@@ -144,6 +157,379 @@ For more information, visit: https://github.com/maxbaines/ralph
  */
 function printVersion(): void {
   console.log(`Little Wiggy v${VERSION}`)
+}
+
+/**
+ * Handle global command - install loop globally
+ */
+async function handleGlobal(): Promise<void> {
+  console.log('╔════════════════════════════════════════════════════════════╗')
+  console.log('║                    🤖 Little Wiggy                         ║')
+  console.log('║                   Global Installation                      ║')
+  console.log('╚════════════════════════════════════════════════════════════╝')
+  console.log('')
+
+  const platform = process.platform
+  if (platform === 'win32') {
+    console.error('❌ Global installation is not supported on Windows.')
+    console.error('   Please add the loop binary to your PATH manually.')
+    process.exit(1)
+  }
+
+  const binPath = '/usr/local/bin/loop'
+  const sharePath = '/usr/local/share/loop/docker'
+  const sandboxDest = join(sharePath, 'sandbox.sh')
+
+  // Find the current loop binary
+  const currentBinary = process.argv[1]
+  if (!currentBinary || !existsSync(currentBinary)) {
+    console.error('❌ Could not find current loop binary')
+    process.exit(1)
+  }
+
+  // Find sandbox.sh
+  const possibleSandboxPaths = [
+    join(process.cwd(), 'docker', 'sandbox.sh'),
+    join(dirname(currentBinary), 'docker', 'sandbox.sh'),
+    join(dirname(currentBinary), '..', 'docker', 'sandbox.sh'),
+  ]
+
+  let sandboxSrc: string | null = null
+  for (const p of possibleSandboxPaths) {
+    if (existsSync(p)) {
+      sandboxSrc = p
+      break
+    }
+  }
+
+  console.log(`📦 Installing loop globally...`)
+  console.log(`   Binary: ${currentBinary} → ${binPath}`)
+  if (sandboxSrc) {
+    console.log(`   Sandbox: ${sandboxSrc} → ${sandboxDest}`)
+  }
+  console.log('')
+
+  // Use sudo to copy files
+  const commands: string[][] = []
+
+  // Copy binary
+  commands.push(['sudo', 'cp', currentBinary, binPath])
+  commands.push(['sudo', 'chmod', '+x', binPath])
+
+  // Copy sandbox.sh if found
+  if (sandboxSrc) {
+    commands.push(['sudo', 'mkdir', '-p', sharePath])
+    commands.push(['sudo', 'cp', sandboxSrc, sandboxDest])
+    commands.push(['sudo', 'chmod', '+x', sandboxDest])
+  }
+
+  console.log('🔐 Requesting sudo access...')
+  console.log('')
+
+  for (const cmd of commands) {
+    const result = spawnSync(cmd[0], cmd.slice(1), {
+      stdio: 'inherit',
+    })
+    if (result.status !== 0) {
+      console.error(`❌ Failed to execute: ${cmd.join(' ')}`)
+      process.exit(1)
+    }
+  }
+
+  console.log('')
+  console.log('✅ Loop installed globally!')
+  console.log('')
+  console.log('   You can now run:')
+  console.log('   $ loop --help')
+  console.log('   $ loop init "Your project description"')
+  console.log('   $ loop do "Your task"')
+  console.log('')
+}
+
+/**
+ * Handle new command - create a new project folder
+ */
+async function handleNew(args: string[]): Promise<void> {
+  const name = args[0]
+
+  if (!name || name.startsWith('-')) {
+    console.error('Error: Please provide a project name')
+    console.error('Usage: loop new <name>')
+    process.exit(1)
+  }
+
+  console.log('╔════════════════════════════════════════════════════════════╗')
+  console.log('║                    🤖 Little Wiggy                         ║')
+  console.log('║                   New Project Setup                        ║')
+  console.log('╚════════════════════════════════════════════════════════════╝')
+  console.log('')
+
+  const projDir = join(process.cwd(), 'proj', name)
+
+  if (existsSync(projDir)) {
+    console.error(`❌ Project folder already exists: ${projDir}`)
+    process.exit(1)
+  }
+
+  console.log(`📁 Creating project: ${name}`)
+  console.log(`   Location: ${projDir}`)
+  console.log('')
+
+  // Create project directory structure
+  mkdirSync(projDir, { recursive: true })
+  mkdirSync(join(projDir, 'docker'), { recursive: true })
+
+  // Find and copy loop binary
+  const currentBinary = process.argv[1]
+  const possibleBinaries = [
+    currentBinary,
+    join(process.cwd(), 'loop'),
+    '/usr/local/bin/loop',
+  ]
+
+  let binarySrc: string | null = null
+  for (const p of possibleBinaries) {
+    if (p && existsSync(p)) {
+      binarySrc = p
+      break
+    }
+  }
+
+  if (binarySrc) {
+    copyFileSync(binarySrc, join(projDir, 'loop'))
+    // Make executable
+    spawnSync('chmod', ['+x', join(projDir, 'loop')])
+    console.log('   ✓ Copied loop binary')
+  } else {
+    console.log('   ⚠ Could not find loop binary to copy')
+  }
+
+  // Find and copy sandbox.sh
+  const possibleSandboxPaths = [
+    join(process.cwd(), 'docker', 'sandbox.sh'),
+    join(dirname(currentBinary || ''), 'docker', 'sandbox.sh'),
+    join(dirname(currentBinary || ''), '..', 'docker', 'sandbox.sh'),
+    '/usr/local/share/loop/docker/sandbox.sh',
+  ]
+
+  let sandboxSrc: string | null = null
+  for (const p of possibleSandboxPaths) {
+    if (existsSync(p)) {
+      sandboxSrc = p
+      break
+    }
+  }
+
+  if (sandboxSrc) {
+    copyFileSync(sandboxSrc, join(projDir, 'docker', 'sandbox.sh'))
+    spawnSync('chmod', ['+x', join(projDir, 'docker', 'sandbox.sh')])
+    console.log('   ✓ Copied docker/sandbox.sh')
+  }
+
+  // Copy or create .env
+  const possibleEnvPaths = [
+    join(process.cwd(), '.env'),
+    join(dirname(currentBinary || ''), '.env'),
+  ]
+
+  let envSrc: string | null = null
+  for (const p of possibleEnvPaths) {
+    if (existsSync(p)) {
+      envSrc = p
+      break
+    }
+  }
+
+  if (envSrc) {
+    copyFileSync(envSrc, join(projDir, '.env'))
+    console.log('   ✓ Copied .env')
+  } else {
+    // Create default .env
+    const defaultEnv = `# Loop Configuration
+ANTHROPIC_API_KEY=your-api-key-here
+RALPH_MODEL=claude-sonnet-4-20250514
+RALPH_MAX_TOKENS=8192
+RALPH_VERBOSE=false
+`
+    writeFileSync(join(projDir, '.env'), defaultEnv)
+    console.log('   ✓ Created .env (please add your API key)')
+  }
+
+  // Create .gitignore
+  const gitignore = `.env
+progress.txt
+node_modules/
+dist/
+*.log
+.DS_Store
+`
+  writeFileSync(join(projDir, '.gitignore'), gitignore)
+  console.log('   ✓ Created .gitignore')
+
+  console.log('')
+  console.log('✅ Project created successfully!')
+  console.log('')
+  console.log('   Next steps:')
+  console.log(`   $ cd proj/${name}`)
+  console.log('   $ ./loop init "Your project description"')
+  console.log('   $ ./loop 5')
+  console.log('')
+}
+
+/**
+ * Handle sandbox command - launch fresh Docker sandbox
+ */
+async function handleSandbox(args: string[]): Promise<void> {
+  const name = args[0]
+
+  if (!name || name.startsWith('-')) {
+    console.error('Error: Please provide a sandbox name')
+    console.error('Usage: loop sandbox <name>')
+    process.exit(1)
+  }
+
+  console.log('╔════════════════════════════════════════════════════════════╗')
+  console.log('║                    🐳 Loop Sandbox                         ║')
+  console.log('║                   Fresh Build Mode                         ║')
+  console.log('╚════════════════════════════════════════════════════════════╝')
+  console.log('')
+
+  const containerName = `loop-${name}`
+  const imageName = 'loop'
+
+  // Check if Docker is running
+  const dockerCheck = spawnSync('docker', ['info'], { stdio: 'pipe' })
+  if (dockerCheck.status !== 0) {
+    console.error('❌ Docker is not running')
+    console.error('   Please start Docker and try again.')
+    process.exit(1)
+  }
+
+  // Stop and remove existing container if it exists
+  console.log(`📦 Container: ${containerName}`)
+  console.log(`📁 Workspace: ${process.cwd()}`)
+  console.log('')
+
+  const existingContainer = spawnSync(
+    'docker',
+    ['ps', '-a', '--format', '{{.Names}}'],
+    { stdio: 'pipe' },
+  )
+  const containers = existingContainer.stdout?.toString() || ''
+
+  if (containers.split('\n').includes(containerName)) {
+    console.log('⏳ Removing existing container...')
+    spawnSync('docker', ['rm', '-f', containerName], { stdio: 'pipe' })
+    console.log('   ✓ Removed')
+  }
+
+  // Always rebuild the image
+  console.log('⏳ Building fresh Docker image...')
+
+  // Find Dockerfile
+  const possibleDockerfiles = [
+    join(process.cwd(), 'Dockerfile'),
+    join(dirname(process.argv[1] || ''), 'Dockerfile'),
+    join(dirname(process.argv[1] || ''), '..', 'Dockerfile'),
+  ]
+
+  let dockerfilePath: string | null = null
+  let dockerContext: string | null = null
+  for (const p of possibleDockerfiles) {
+    if (existsSync(p)) {
+      dockerfilePath = p
+      dockerContext = dirname(p)
+      break
+    }
+  }
+
+  if (!dockerfilePath || !dockerContext) {
+    console.error('❌ Dockerfile not found')
+    console.error('   Make sure you have a Dockerfile in the project.')
+    process.exit(1)
+  }
+
+  const buildResult = spawnSync(
+    'docker',
+    ['build', '-t', imageName, dockerContext],
+    { stdio: 'inherit' },
+  )
+
+  if (buildResult.status !== 0) {
+    console.error('❌ Docker build failed')
+    process.exit(1)
+  }
+
+  console.log('   ✓ Image built')
+  console.log('')
+
+  // Create new container
+  console.log('⏳ Creating new container...')
+
+  const dockerRunArgs = [
+    'run',
+    '-d',
+    '--name',
+    containerName,
+    '-v',
+    `${process.cwd()}:/workspace`,
+  ]
+
+  // Pass through environment variables
+  if (process.env.ANTHROPIC_API_KEY) {
+    dockerRunArgs.push(
+      '-e',
+      `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`,
+    )
+  }
+  if (process.env.RALPH_MODEL) {
+    dockerRunArgs.push('-e', `RALPH_MODEL=${process.env.RALPH_MODEL}`)
+  }
+  if (process.env.RALPH_MAX_TOKENS) {
+    dockerRunArgs.push('-e', `RALPH_MAX_TOKENS=${process.env.RALPH_MAX_TOKENS}`)
+  }
+  if (process.env.RALPH_VERBOSE) {
+    dockerRunArgs.push('-e', `RALPH_VERBOSE=${process.env.RALPH_VERBOSE}`)
+  }
+
+  // Calculate port based on container name hash
+  const hash = name.split('').reduce((a, b) => {
+    a = (a << 5) - a + b.charCodeAt(0)
+    return a & a
+  }, 0)
+  const portOffset = Math.abs(hash) % 1000
+  const webPort = 7681 + portOffset
+
+  dockerRunArgs.push('-p', `${webPort}:7681`)
+  dockerRunArgs.push(imageName)
+
+  const runResult = spawnSync('docker', dockerRunArgs, { stdio: 'pipe' })
+
+  if (runResult.status !== 0) {
+    console.error('❌ Failed to create container')
+    console.error(runResult.stderr?.toString())
+    process.exit(1)
+  }
+
+  console.log('   ✓ Container created')
+  console.log(`🌐 Web terminal: http://localhost:${webPort}`)
+  console.log('')
+  console.log('🚀 Connecting to sandbox...')
+  console.log("   Type 'exit' to leave (container keeps running)")
+  console.log(`   Run 'docker stop ${containerName}' to stop`)
+  console.log('')
+  console.log(
+    '════════════════════════════════════════════════════════════════',
+  )
+
+  // Attach to container
+  const execResult = spawnSync(
+    'docker',
+    ['exec', '-it', '-w', '/workspace', containerName, 'bash'],
+    { stdio: 'inherit' },
+  )
+
+  process.exit(execResult.status || 0)
 }
 
 /**
@@ -321,6 +707,24 @@ async function handleDo(args: string[]): Promise<void> {
 async function main(): Promise<void> {
   // Skip first two args (bun and script path)
   const rawArgs = process.argv.slice(2)
+
+  // Check for global command
+  if (rawArgs[0] === 'global') {
+    await handleGlobal()
+    return
+  }
+
+  // Check for new command
+  if (rawArgs[0] === 'new') {
+    await handleNew(rawArgs.slice(1))
+    return
+  }
+
+  // Check for sandbox command
+  if (rawArgs[0] === 'sandbox') {
+    await handleSandbox(rawArgs.slice(1))
+    return
+  }
 
   // Check for init command
   if (rawArgs[0] === 'init') {
