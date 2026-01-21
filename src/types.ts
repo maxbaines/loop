@@ -18,6 +18,7 @@ export interface RalphArgs {
   iterations: number
   hitl: boolean
   sandbox: boolean
+  sandboxName?: string
   configFile?: string
   help: boolean
   version: boolean

@@ -43,6 +43,10 @@ function parseArgs(args: string[]): RalphArgs {
 
       case '--sandbox':
         result.sandbox = true
+        // Check if next arg is the sandbox name (not a flag)
+        if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
+          result.sandboxName = args[++i]
+        }
         break
 
       case '-c':
@@ -87,7 +91,7 @@ Run Options:
   -v, --version       Show version number
   -n, --iterations N  Number of iterations to run
   --hitl              Human-in-the-loop mode (pause between iterations)
-  --sandbox           Run in sandbox mode (limited permissions)
+  --sandbox <name>    Run in Docker sandbox (creates/attaches to named container)
   -c, --config FILE   Path to config file (default: ralph.config.json)
 
 Init Options:
@@ -102,6 +106,7 @@ Do Options:
 Examples:
   wiggy 5             Run 5 iterations
   wiggy 10 --hitl     Run 10 iterations with HITL pauses
+  wiggy --sandbox myproject   Create/attach to sandbox 'loop-myproject'
   wiggy init "Build a REST API for user authentication"
   wiggy init "Add tests for all endpoints" --analyze
   wiggy do "Fix build errors and package as an app"
@@ -349,10 +354,45 @@ async function main(): Promise<void> {
   }
 
   if (args.sandbox) {
-    console.log('Note: Sandbox mode is not yet implemented in the Bun version.')
-    console.log(
-      'For sandboxed execution, use Docker or the shell script version.',
-    )
+    // Launch sandbox mode via Docker
+    const sandboxName = args.sandboxName || 'default'
+    const { spawnSync } = await import('child_process')
+    const { join, dirname } = await import('path')
+    const { fileURLToPath } = await import('url')
+
+    // Find the sandbox script - check multiple locations
+    const possiblePaths = [
+      join(process.cwd(), 'docker', 'sandbox.sh'),
+      join(dirname(process.argv[1]), '..', 'docker', 'sandbox.sh'),
+      '/usr/local/share/loop/docker/sandbox.sh',
+    ]
+
+    let sandboxScript: string | null = null
+    const { existsSync } = await import('fs')
+    for (const p of possiblePaths) {
+      if (existsSync(p)) {
+        sandboxScript = p
+        break
+      }
+    }
+
+    if (!sandboxScript) {
+      console.error('Error: sandbox.sh script not found')
+      console.error(
+        'Make sure you have the docker/sandbox.sh script available.',
+      )
+      process.exit(1)
+    }
+
+    console.log(`🐳 Launching sandbox: ${sandboxName}`)
+
+    // Execute the sandbox script
+    const result = spawnSync('bash', [sandboxScript, sandboxName], {
+      stdio: 'inherit',
+      env: process.env,
+    })
+
+    process.exit(result.status || 0)
   }
 
   try {
