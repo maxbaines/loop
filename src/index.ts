@@ -689,6 +689,12 @@ async function handleSandboxList(): Promise<void> {
 async function handleSandbox(args: string[]): Promise<void> {
   const name = args[0]
 
+  // Check for 'list' subcommand - should have been handled in main() but double-check
+  if (name === 'list') {
+    await handleSandboxList()
+    return
+  }
+
   // If no name provided, use current directory (original behavior)
   const useCurrentDir = !name || name.startsWith('-')
 
