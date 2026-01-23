@@ -79,18 +79,37 @@ export ANTHROPIC_API_KEY=your-api-key
 ## Usage
 
 ```bash
-# Run with default settings (5 iterations)
-bun run dev
+# Run 5 iterations (runs in Docker sandbox by default)
+loop 5
 
-# Run with specific number of iterations
-bun run dev -- --iterations 10
+# Run locally without sandbox
+loop 5 --no-sandbox
 
 # Run in HITL (human-in-the-loop) mode
-bun run dev -- --hitl
+loop 10 --hitl
 
-# Run with verbose output
-bun run dev -- --verbose
+# Generate a PRD from description
+loop init "Build a REST API for user authentication"
+
+# One-off task: generate PRD and run to completion
+loop do "Fix build errors and add tests"
+
+# Launch interactive Docker sandbox
+loop sandbox myproject
+
+# List all sandboxes
+loop sandbox list
 ```
+
+### Sandbox Mode (Default)
+
+By default, Loop runs inside a Docker sandbox for safety. The sandbox:
+
+- Isolates file system changes
+- Provides a web terminal at `http://localhost:<port>`
+- Persists project files in `proj/<name>/`
+
+Use `--no-sandbox` to run directly on your machine.
 
 ## Configuration
 

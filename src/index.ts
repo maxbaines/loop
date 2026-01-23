@@ -29,7 +29,7 @@ function parseArgs(args: string[]): RalphArgs {
   const result: RalphArgs = {
     iterations: 1,
     hitl: false,
-    sandbox: false,
+    sandbox: true,
     help: false,
     version: false,
   }
@@ -58,6 +58,10 @@ function parseArgs(args: string[]): RalphArgs {
         if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
           result.sandboxName = args[++i]
         }
+        break
+
+      case '--no-sandbox':
+        result.sandbox = false
         break
 
       case '-c':
@@ -110,6 +114,7 @@ Run Options:
   -v, --version       Show version number
   -n, --iterations N  Number of iterations to run
   --hitl              Human-in-the-loop mode (pause between iterations)
+  --no-sandbox        Run locally instead of in Docker sandbox (sandbox is default)
   -c, --config FILE   Path to config file (default: ralph.config.json)
 
 Manual Intervention:
