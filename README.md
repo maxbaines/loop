@@ -132,13 +132,37 @@ loop sandbox myproject
 loop sandbox
 ```
 
+### Sandbox Commands
+
+```bash
+# Create/attach to a sandbox (rebuilds image fresh each time)
+loop sandbox myproject
+
+# List all sandbox containers
+loop sandbox list
+
+# Stop a specific sandbox
+loop sandbox stop myproject
+
+# Stop all running sandboxes
+loop sandbox stop all
+
+# Remove a sandbox (container + proj folder, with confirmation)
+loop sandbox remove myproject
+
+# Remove all sandboxes (with confirmation)
+loop sandbox remove all
+```
+
 ### Sandbox Modes
 
 **Named sandbox** (`loop sandbox myproject`):
 
 - Creates `proj/myproject/` folder with all needed files
 - Mounts that folder as `/workspace` in the container
+- Mounts all projects as `/projects` for cross-project access
 - Each named sandbox is completely isolated from others
+- Always rebuilds the Docker image fresh
 
 **Default sandbox** (`loop sandbox`):
 
@@ -159,7 +183,8 @@ loop sandbox
 **⚠️ Shared (can affect host):**
 
 - **Mounted workspace** - Files in the project folder are mounted to `/workspace`
-- **Exposed ports** - The web terminal port (7681+offset)
+- **Mounted projects** - All projects in `proj/` are mounted to `/projects`
+- **Exposed ports** - The web terminal port (7681+offset, unique per sandbox)
 
 ### Sandbox Workflow
 
@@ -174,8 +199,14 @@ root@container:/workspace# loop 5
 # Exit sandbox (container keeps running)
 root@container:/workspace# exit
 
+# List all sandboxes to see status and web terminal URLs
+loop sandbox list
+
 # Stop the container when done
-docker stop loop-hello-world
+loop sandbox stop hello-world
+
+# Or remove it completely (deletes container and proj folder)
+loop sandbox remove hello-world
 
 # Launch another isolated sandbox
 loop sandbox another-project
