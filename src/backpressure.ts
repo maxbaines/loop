@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
-import { executeCommand } from './tools/terminal.ts'
+import { spawn } from 'child_process'
 import type { CommandResult } from './types.ts'
 
 /**
@@ -34,23 +34,98 @@ export interface BackPressureResults {
 }
 
 /**
+ * Execute a shell command (internal helper)
+ */
+async function executeCommand(
+  command: string,
+  workingDir: string,
+  timeout: number = 60000,
+): Promise<CommandResult> {
+  return new Promise((resolve) => {
+    const startTime = Date.now()
+
+    // Use shell to execute the command
+    const child = spawn(command, {
+      shell: true,
+      cwd: workingDir,
+      env: process.env,
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString()
+    })
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString()
+    })
+
+    // Set timeout
+    const timeoutId = setTimeout(() => {
+      child.kill('SIGTERM')
+      resolve({
+        success: false,
+        error: `Command timed out after ${timeout}ms`,
+        stdout,
+        stderr,
+        exitCode: -1,
+      })
+    }, timeout)
+
+    child.on('close', (code) => {
+      clearTimeout(timeoutId)
+      const duration = Date.now() - startTime
+
+      if (code === 0) {
+        resolve({
+          success: true,
+          output: `Command completed in ${duration}ms`,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          exitCode: code,
+        })
+      } else {
+        resolve({
+          success: false,
+          error: `Command exited with code ${code}`,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          exitCode: code ?? -1,
+        })
+      }
+    })
+
+    child.on('error', (error) => {
+      clearTimeout(timeoutId)
+      resolve({
+        success: false,
+        error: `Failed to execute command: ${error.message}`,
+        exitCode: -1,
+      })
+    })
+  })
+}
+
+/**
  * Parse back pressure commands from AGENTS.md content
  * Looks for the "Back pressure" section and extracts commands
  */
 export function parseBackPressureConfig(
-  agentsMdContent: string
+  agentsMdContent: string,
 ): BackPressureCheck[] {
   const checks: BackPressureCheck[] = []
 
   // Find the "Back pressure" section (case insensitive)
   const backPressureMatch = agentsMdContent.match(
-    /##\s*Back\s*pressure[^\n]*\n([\s\S]*?)(?=\n##\s|\n#\s|$)/i
+    /##\s*Back\s*pressure[^\n]*\n([\s\S]*?)(?=\n##\s|\n#\s|$)/i,
   )
 
   if (!backPressureMatch) {
     // Fallback: try to find commands in "Setup commands" section
     const setupMatch = agentsMdContent.match(
-      /##\s*Setup\s*commands[^\n]*\n([\s\S]*?)(?=\n##\s|\n#\s|$)/i
+      /##\s*Setup\s*commands[^\n]*\n([\s\S]*?)(?=\n##\s|\n#\s|$)/i,
     )
 
     if (setupMatch) {
@@ -72,7 +147,7 @@ export function parseBackPressureConfig(
  */
 function parseCommandsFromSection(
   section: string,
-  defaultRequired: boolean
+  defaultRequired: boolean,
 ): BackPressureCheck[] {
   const checks: BackPressureCheck[] = []
   const lines = section.split('\n')
@@ -83,7 +158,7 @@ function parseCommandsFromSection(
 
     // Pattern 1: "- Name: `command`" or "- Name: command"
     const namedMatch = line.match(
-      /^[-*]\s*(\w+(?:\s+\w+)?)\s*:\s*`?([^`\n]+)`?/i
+      /^[-*]\s*(\w+(?:\s+\w+)?)\s*:\s*`?([^`\n]+)`?/i,
     )
     if (namedMatch) {
       const name = namedMatch[1].trim()
@@ -146,7 +221,7 @@ function inferCheckName(command: string): string {
  * Load and parse AGENTS.md from a directory
  */
 export function loadBackPressureConfig(
-  workingDir: string
+  workingDir: string,
 ): BackPressureCheck[] {
   const agentsPath = join(workingDir, 'AGENTS.md')
 
@@ -186,7 +261,7 @@ function getDefaultChecks(): BackPressureCheck[] {
  */
 export async function runBackPressureChecks(
   workingDir: string,
-  checks?: BackPressureCheck[]
+  checks?: BackPressureCheck[],
 ): Promise<BackPressureResults> {
   const checksToRun = checks || loadBackPressureConfig(workingDir)
   const results: BackPressureResults['checks'] = []
@@ -237,20 +312,54 @@ export async function runBackPressureChecks(
  */
 async function runAutoDetectedCheck(
   checkName: string,
-  workingDir: string
+  workingDir: string,
 ): Promise<CommandResult> {
-  const { runTypeCheck, runTests, runLint } = await import(
-    './tools/terminal.ts'
-  )
-
   switch (checkName.toLowerCase()) {
-    case 'typecheck':
-      return runTypeCheck(workingDir)
+    case 'typecheck': {
+      // Try different type check commands
+      const commands = [
+        'bun run typecheck',
+        'pnpm typecheck',
+        'npm run typecheck',
+        'npx tsc --noEmit',
+      ]
+      for (const cmd of commands) {
+        const result = await executeCommand(cmd, workingDir, 120000)
+        if (result.success || result.exitCode !== 127) {
+          return result
+        }
+      }
+      return { success: true, output: 'No type checking configured' }
+    }
+
     case 'test':
-    case 'tests':
-      return runTests(workingDir)
-    case 'lint':
-      return runLint(workingDir)
+    case 'tests': {
+      const commands = ['bun test', 'pnpm test', 'npm test']
+      for (const cmd of commands) {
+        const result = await executeCommand(cmd, workingDir, 300000)
+        if (result.success || result.exitCode !== 127) {
+          return result
+        }
+      }
+      return { success: true, output: 'No tests configured' }
+    }
+
+    case 'lint': {
+      const commands = [
+        'bun run lint',
+        'pnpm lint',
+        'npm run lint',
+        'npx eslint .',
+      ]
+      for (const cmd of commands) {
+        const result = await executeCommand(cmd, workingDir, 120000)
+        if (result.success || result.exitCode !== 127) {
+          return result
+        }
+      }
+      return { success: true, output: 'No linting configured' }
+    }
+
     default:
       return {
         success: true,
@@ -264,7 +373,7 @@ async function runAutoDetectedCheck(
  */
 function generateSummary(
   results: BackPressureResults['checks'],
-  allPassed: boolean
+  allPassed: boolean,
 ): string {
   const lines: string[] = []
 
@@ -282,7 +391,7 @@ function generateSummary(
     lines.push(
       `${icon} ${result.name}: ${
         result.passed ? 'passed' : 'FAILED'
-      } ${duration}`
+      } ${duration}`,
     )
 
     // Include error output for failed checks
@@ -309,7 +418,7 @@ export function formatResultsForProgress(results: BackPressureResults): string {
   for (const result of results.checks) {
     const icon = result.passed ? '✅' : '❌'
     lines.push(
-      `- ${icon} ${result.name}: ${result.passed ? 'passed' : 'FAILED'}`
+      `- ${icon} ${result.name}: ${result.passed ? 'passed' : 'FAILED'}`,
     )
   }
 

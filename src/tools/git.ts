@@ -1,10 +1,86 @@
 /**
  * Git tools for Ralph
- * Provides git operations
+ * Provides git operations using child_process directly
+ * (No longer depends on terminal.ts)
  */
 
-import { executeCommand } from './terminal.ts'
+import { spawn } from 'child_process'
 import type { GitResult, CommandResult } from '../types.ts'
+
+/**
+ * Execute a shell command (internal helper)
+ */
+async function executeCommand(
+  command: string,
+  workingDir: string,
+  timeout: number = 60000,
+): Promise<CommandResult> {
+  return new Promise((resolve) => {
+    const startTime = Date.now()
+
+    // Use shell to execute the command
+    const child = spawn(command, {
+      shell: true,
+      cwd: workingDir,
+      env: process.env,
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString()
+    })
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString()
+    })
+
+    // Set timeout
+    const timeoutId = setTimeout(() => {
+      child.kill('SIGTERM')
+      resolve({
+        success: false,
+        error: `Command timed out after ${timeout}ms`,
+        stdout,
+        stderr,
+        exitCode: -1,
+      })
+    }, timeout)
+
+    child.on('close', (code) => {
+      clearTimeout(timeoutId)
+      const duration = Date.now() - startTime
+
+      if (code === 0) {
+        resolve({
+          success: true,
+          output: `Command completed in ${duration}ms`,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          exitCode: code,
+        })
+      } else {
+        resolve({
+          success: false,
+          error: `Command exited with code ${code}`,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          exitCode: code ?? -1,
+        })
+      }
+    })
+
+    child.on('error', (error) => {
+      clearTimeout(timeoutId)
+      resolve({
+        success: false,
+        error: `Failed to execute command: ${error.message}`,
+        exitCode: -1,
+      })
+    })
+  })
+}
 
 /**
  * Check if directory is a git repository
@@ -20,7 +96,7 @@ export async function isGitRepo(workingDir: string): Promise<boolean> {
 export async function getCurrentBranch(workingDir: string): Promise<GitResult> {
   const result = await executeCommand(
     'git rev-parse --abbrev-ref HEAD',
-    workingDir
+    workingDir,
   )
 
   if (result.success) {
@@ -49,7 +125,7 @@ export async function getStatus(workingDir: string): Promise<CommandResult> {
  */
 export async function stageFiles(
   files: string | string[],
-  workingDir: string
+  workingDir: string,
 ): Promise<CommandResult> {
   const fileList = Array.isArray(files) ? files.join(' ') : files
   return executeCommand(`git add ${fileList}`, workingDir)
@@ -67,20 +143,20 @@ export async function stageAll(workingDir: string): Promise<CommandResult> {
  */
 export async function commit(
   message: string,
-  workingDir: string
+  workingDir: string,
 ): Promise<GitResult> {
   // Escape quotes in message
   const escapedMessage = message.replace(/"/g, '\\"')
   const result = await executeCommand(
     `git commit -m "${escapedMessage}"`,
-    workingDir
+    workingDir,
   )
 
   if (result.success) {
     // Get the commit hash
     const hashResult = await executeCommand(
       'git rev-parse --short HEAD',
-      workingDir
+      workingDir,
     )
     return {
       success: true,
@@ -100,7 +176,7 @@ export async function commit(
  */
 export async function stageAndCommit(
   message: string,
-  workingDir: string
+  workingDir: string,
 ): Promise<GitResult> {
   const stageResult = await stageAll(workingDir)
   if (!stageResult.success) {
@@ -127,7 +203,7 @@ export async function stageAndCommit(
  */
 export async function getRecentCommits(
   workingDir: string,
-  count: number = 5
+  count: number = 5,
 ): Promise<CommandResult> {
   return executeCommand(`git log --oneline -n ${count}`, workingDir)
 }
@@ -136,7 +212,7 @@ export async function getRecentCommits(
  * Get diff of staged changes
  */
 export async function getStagedDiff(
-  workingDir: string
+  workingDir: string,
 ): Promise<CommandResult> {
   return executeCommand('git diff --cached', workingDir)
 }
@@ -145,7 +221,7 @@ export async function getStagedDiff(
  * Get diff of unstaged changes
  */
 export async function getUnstagedDiff(
-  workingDir: string
+  workingDir: string,
 ): Promise<CommandResult> {
   return executeCommand('git diff', workingDir)
 }
@@ -155,7 +231,7 @@ export async function getUnstagedDiff(
  */
 export async function createBranch(
   branchName: string,
-  workingDir: string
+  workingDir: string,
 ): Promise<CommandResult> {
   return executeCommand(`git checkout -b ${branchName}`, workingDir)
 }
@@ -165,7 +241,7 @@ export async function createBranch(
  */
 export async function switchBranch(
   branchName: string,
-  workingDir: string
+  workingDir: string,
 ): Promise<CommandResult> {
   return executeCommand(`git checkout ${branchName}`, workingDir)
 }

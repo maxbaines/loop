@@ -1,19 +1,21 @@
 /**
  * Claude Agent SDK integration for Ralph
- * Handles communication with Claude API
+ * Uses the official Claude Agent SDK for autonomous coding
  */
 
-import Anthropic from '@anthropic-ai/sdk'
-import type {
-  MessageParam,
-  ContentBlockParam,
-  ToolResultBlockParam,
-  TextBlockParam,
-} from '@anthropic-ai/sdk/resources/messages'
+import {
+  query,
+  type SDKResultMessage,
+  type SDKAssistantMessage,
+  type Options,
+  type HookInput,
+  type HookJSONOutput,
+  type PreToolUseHookInput,
+  type PostToolUseHookInput,
+} from '@anthropic-ai/claude-agent-sdk'
 import type { RalphConfig } from './types.ts'
-import { toolDefinitions, executeTool } from './tools/index.ts'
 import { COMPLETION_MARKER } from './types.ts'
-import { formatToolCall, formatToolResult, formatFileChange } from './output.ts'
+import { formatToolCall, formatFileChange, formatInfo } from './output.ts'
 
 /**
  * Parse structured output from agent response
@@ -38,7 +40,7 @@ function parseStructuredOutput(output: string): {
 
   // Extract "## Changes Made" section for summary
   const changesMadeMatch = output.match(
-    /##\s*Changes Made\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*|$)/i
+    /##\s*Changes Made\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*|$)/i,
   )
   if (changesMadeMatch) {
     result.summary = changesMadeMatch[1].trim()
@@ -46,7 +48,7 @@ function parseStructuredOutput(output: string): {
 
   // Extract "## Decisions" section
   const decisionsMatch = output.match(
-    /##\s*Decisions\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*Completed|$)/i
+    /##\s*Decisions\s*\n([\s\S]*?)(?=\n##|\n---|\n\*\*Completed|$)/i,
   )
   if (decisionsMatch) {
     const decisionsBlock = decisionsMatch[1]
@@ -68,13 +70,13 @@ function parseStructuredOutput(output: string): {
 export function createSystemPrompt(
   prdSummary: string,
   progressSummary: string,
-  agentsMd?: string
+  agentsMd?: string,
 ): string {
   // Extract back pressure section from AGENTS.md if present
   let backPressureInstructions = ''
   if (agentsMd) {
     const backPressureMatch = agentsMd.match(
-      /##\s*Back\s*pressure[^\n]*\n([\s\S]*?)(?=\n##\s|\n#\s|$)/i
+      /##\s*Back\s*pressure[^\n]*\n([\s\S]*?)(?=\n##\s|\n#\s|$)/i,
     )
     if (backPressureMatch) {
       backPressureInstructions = `
@@ -82,7 +84,7 @@ export function createSystemPrompt(
 Run these checks before committing:
 ${backPressureMatch[1].trim()}
 
-Use the \`run_checks\` tool to run all these checks at once, or run them individually.
+Use the Bash tool to run these checks.
 `
     }
   }
@@ -101,11 +103,29 @@ Use the \`run_checks\` tool to run all these checks at once, or run them individ
    - Standard features and implementation
    - Polish, cleanup, and quick wins
 5. **Implement the chosen task** with small, focused changes.
-6. **Run ALL back pressure checks** before committing:
-   - Use \`run_checks\` to run all checks defined in AGENTS.md
-   - Or use individual tools: run_typecheck, run_tests, run_lint
-   - Do NOT commit if any required check fails. Fix issues first.
-7. **Make a git commit** with a clear, descriptive message using git_commit.
+6. **Run ALL back pressure checks** before committing using Bash tool.
+7. **Make a git commit** using Bash: \`git add -A && git commit -m "message"\`
+
+## Available Tools
+
+You have access to powerful built-in tools:
+
+### File Tools
+- **Read** - Read any file in the working directory (supports offset/limit for large files)
+- **Write** - Create new files
+- **Edit** - Make precise edits to existing files (search/replace)
+- **Glob** - Find files by pattern (\`**/*.ts\`, \`src/**/*.py\`)
+- **Grep** - Search file contents with regex and context lines
+
+### Shell Tools
+- **Bash** - Run terminal commands, scripts, git operations
+
+### Web Tools
+- **WebSearch** - Search the web for current information
+- **WebFetch** - Fetch and parse web page content
+
+### Interactive Tools
+- **AskUserQuestion** - Ask the user clarifying questions with multiple choice options
 
 ## Rules
 
@@ -129,8 +149,8 @@ ${agentsMd ? `### Project Guidelines (AGENTS.md)\n${agentsMd}` : ''}
 ## Completion
 
 When you have completed a task:
-1. Run all back pressure checks (use \`run_checks\` or individual tools)
-2. Make a git commit with a descriptive message
+1. Run all back pressure checks using Bash
+2. Make a git commit: \`git add -A && git commit -m "descriptive message"\`
 3. Report what you did using this EXACT format:
 
 ## Changes Made
@@ -152,12 +172,56 @@ This signals that the entire PRD has been implemented and Ralph should stop.
 }
 
 /**
- * Run a single Ralph iteration
+ * Create hook callbacks for tool execution monitoring
+ */
+function createHooks(verbose: boolean) {
+  return {
+    PreToolUse: [
+      {
+        hooks: [
+          async (
+            input: HookInput,
+            _toolUseID: string | undefined,
+            _options: { signal: AbortSignal },
+          ): Promise<HookJSONOutput> => {
+            if (verbose && input.hook_event_name === 'PreToolUse') {
+              const preToolInput = input as PreToolUseHookInput
+              console.log(formatInfo(`🔧 Running: ${preToolInput.tool_name}`))
+            }
+            return { continue: true }
+          },
+        ],
+      },
+    ],
+    PostToolUse: [
+      {
+        hooks: [
+          async (
+            input: HookInput,
+            _toolUseID: string | undefined,
+            _options: { signal: AbortSignal },
+          ): Promise<HookJSONOutput> => {
+            if (verbose && input.hook_event_name === 'PostToolUse') {
+              const postToolInput = input as PostToolUseHookInput
+              console.log(
+                formatInfo(`✅ Completed: ${postToolInput.tool_name}`),
+              )
+            }
+            return { continue: true }
+          },
+        ],
+      },
+    ],
+  }
+}
+
+/**
+ * Run a single Ralph iteration using the Claude Agent SDK
  */
 export async function runIteration(
   config: RalphConfig,
   systemPrompt: string,
-  verbose: boolean = false
+  verbose: boolean = false,
 ): Promise<{
   success: boolean
   isComplete: boolean
@@ -168,165 +232,118 @@ export async function runIteration(
   error?: string
   output?: string
 }> {
-  const client = new Anthropic({
-    apiKey: config.apiKey,
-    timeout: 10 * 60 * 1000, // 10 minutes
-  })
-
-  const messages: MessageParam[] = [
-    {
-      role: 'user',
-      content:
-        'Analyze the PRD and progress, then implement the highest-priority incomplete task. Remember to run feedback loops and commit your changes.',
-    },
-  ]
-
   let fullOutput = ''
   let taskDescription = ''
   let decisions: string[] = []
   let summary = ''
-  let filesChanged: string[] = []
+  const filesChanged: string[] = []
   let isComplete = false
 
   try {
-    // Agentic loop - keep going until the agent stops using tools
-    while (true) {
-      const response = await client.messages.create({
-        model: config.model,
-        max_tokens: config.maxTokens,
-        system: systemPrompt,
-        tools: toolDefinitions,
-        messages,
-      })
+    // Configure the agent query options
+    const options: Options = {
+      cwd: config.workingDir,
+      model: config.model,
+      maxTurns: 50, // Allow up to 50 tool calls per iteration
+      // Use Claude Code's default tools plus web and interactive tools
+      tools: [
+        'Read',
+        'Write',
+        'Edit',
+        'Bash',
+        'Glob',
+        'Grep',
+        'WebSearch',
+        'WebFetch',
+        'AskUserQuestion',
+      ],
+      // Use custom system prompt with append
+      systemPrompt: {
+        type: 'preset',
+        preset: 'claude_code',
+        append: systemPrompt,
+      },
+      // Auto-allow safe read-only tools for autonomous operation
+      allowedTools: ['Read', 'Glob', 'Grep'],
+      // Permission mode for autonomous operation
+      permissionMode: 'acceptEdits',
+      // Add hooks for tool execution monitoring
+      hooks: createHooks(verbose),
+    }
 
-      // Process the response
-      let hasToolUse = false
-      const assistantContent: ContentBlockParam[] = []
+    const prompt =
+      'Analyze the PRD and progress, then implement the highest-priority incomplete task. Remember to run feedback loops and commit your changes.'
 
-      for (const block of response.content) {
-        if (block.type === 'text') {
-          fullOutput += block.text + '\n'
-          if (verbose) {
-            console.log(block.text)
+    // Run the agent query
+    for await (const message of query({ prompt, options })) {
+      // Handle different message types
+      if (message.type === 'assistant') {
+        const assistantMsg = message as SDKAssistantMessage
+        // Extract text from the message
+        for (const block of assistantMsg.message.content) {
+          if (block.type === 'text') {
+            fullOutput += block.text + '\n'
+            if (verbose) {
+              console.log(block.text)
+            }
+
+            // Check for completion marker
+            if (block.text.includes(COMPLETION_MARKER)) {
+              isComplete = true
+            }
           }
 
-          // Check for completion marker
-          if (block.text.includes(COMPLETION_MARKER)) {
-            isComplete = true
-          }
-
-          // Try to extract task description
-          const taskMatch = block.text.match(
-            /(?:working on|implementing|task:|completed:)\s*(.+?)(?:\n|$)/i
-          )
-          if (taskMatch && !taskDescription) {
-            taskDescription = taskMatch[1].trim()
-          }
-
-          assistantContent.push({
-            type: 'text',
-            text: block.text,
-          } as TextBlockParam)
-        }
-
-        if (block.type === 'tool_use') {
-          hasToolUse = true
-
-          if (verbose) {
-            // Format tool call with rich output
+          // Track tool uses for verbose output
+          if (block.type === 'tool_use' && verbose) {
             console.log(
-              formatToolCall(block.name, block.input as Record<string, unknown>)
+              formatToolCall(
+                block.name,
+                block.input as Record<string, unknown>,
+              ),
             )
-          }
 
-          // Execute the tool
-          const toolResult = await executeTool(
-            block.name,
-            block.input as Record<string, unknown>,
-            config.workingDir
-          )
-
-          if (verbose) {
-            // Determine result type based on tool result
-            // Check success patterns FIRST to avoid false positives from file content containing "Error"
-            const resultType =
-              toolResult.startsWith('[Read') &&
-              toolResult.includes('successfully]')
-                ? 'success'
-                : toolResult.startsWith('Error') ||
-                  toolResult.startsWith('Tests failed') ||
-                  toolResult.startsWith('Type check failed') ||
-                  toolResult.startsWith('Lint failed')
-                ? 'error'
-                : toolResult.includes('success') ||
-                  toolResult.includes('passed') ||
-                  toolResult.includes('completed')
-                ? 'success'
-                : 'info'
-
-            console.log(formatToolResult(toolResult, resultType))
-
-            // Show file change notification for write_file
-            if (block.name === 'write_file' && block.input) {
-              const input = block.input as { path?: string; content?: string }
-              if (input.path) {
-                console.log(
-                  formatFileChange(input.path, 'create', input.content)
-                )
+            // Track file changes
+            if (block.name === 'Write' || block.name === 'Edit') {
+              const input = block.input as { file_path?: string }
+              if (input.file_path) {
+                filesChanged.push(input.file_path)
+                console.log(formatFileChange(input.file_path, 'modify'))
               }
             }
           }
+        }
+      }
 
-          // Track file changes
-          if (block.name === 'write_file' && block.input) {
-            const input = block.input as { path?: string }
-            if (input.path) {
-              filesChanged.push(input.path)
+      // Handle result message
+      if (message.type === 'result') {
+        const resultMsg = message as SDKResultMessage
+        if (resultMsg.subtype === 'success') {
+          if (verbose) {
+            console.log(formatInfo(`Completed in ${resultMsg.num_turns} turns`))
+            console.log(
+              formatInfo(`Cost: $${resultMsg.total_cost_usd.toFixed(4)}`),
+            )
+          }
+        } else {
+          // Error result
+          if ('errors' in resultMsg && resultMsg.errors.length > 0) {
+            return {
+              success: false,
+              isComplete: false,
+              error: resultMsg.errors.join(', '),
+              output: fullOutput,
             }
           }
-
-          // Add assistant message with tool use
-          messages.push({
-            role: 'assistant',
-            content: [
-              {
-                type: 'tool_use',
-                id: block.id,
-                name: block.name,
-                input: block.input as Record<string, unknown>,
-              },
-            ],
-          })
-
-          // Add tool result
-          const toolResultBlock: ToolResultBlockParam = {
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: toolResult,
-          }
-
-          messages.push({
-            role: 'user',
-            content: [toolResultBlock],
-          })
         }
       }
 
-      // If no tool use, we're done with this iteration
-      if (!hasToolUse) {
-        // Add final assistant message if there was text
-        if (assistantContent.length > 0) {
-          messages.push({
-            role: 'assistant',
-            content: assistantContent,
-          })
-        }
-        break
-      }
-
-      // Check stop reason
-      if (response.stop_reason === 'end_turn') {
-        break
+      // Handle tool progress for verbose output
+      if (message.type === 'tool_progress' && verbose) {
+        console.log(
+          formatInfo(
+            `Tool ${message.tool_name} running... (${message.elapsed_time_seconds}s)`,
+          ),
+        )
       }
     }
 

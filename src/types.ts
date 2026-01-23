@@ -60,19 +60,11 @@ export interface ProgressEntry {
   backPressureResults?: BackPressureCheckResult[]
 }
 
-// Tool Definitions
+// Tool Result Types (used by git.ts and backpressure.ts)
 export interface ToolResult {
   success: boolean
   output?: string
   error?: string
-}
-
-export interface FileReadResult extends ToolResult {
-  content?: string
-}
-
-export interface FileWriteResult extends ToolResult {
-  path?: string
 }
 
 export interface CommandResult extends ToolResult {
@@ -86,24 +78,9 @@ export interface GitResult extends ToolResult {
   branch?: string
 }
 
-// Agent Types
-export interface AgentMessage {
-  role: 'user' | 'assistant'
-  content: string
-}
-
-export interface AgentToolUse {
-  id: string
-  name: string
-  input: Record<string, unknown>
-}
-
-export interface AgentToolResult {
-  type: 'tool_result'
-  tool_use_id: string
-  content: string
-  is_error?: boolean
-}
+// Note: The Claude Agent SDK provides built-in tool types via:
+// import type { FileReadInput, FileWriteInput, FileEditInput, ... } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
+// See: https://platform.claude.com/docs/en/agent-sdk/overview
 
 // Loop State
 export interface LoopState {
