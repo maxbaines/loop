@@ -113,7 +113,7 @@ export async function runRalph(args: RalphArgs): Promise<void> {
   // Initialize keyboard listener for manual intervention
   const keyboard = getKeyboardListener()
   keyboard.start()
-  console.log(formatInfo('Press Ctrl+K anytime to add feedback to the agent'))
+  console.log(formatInfo('Press Ctrl+\\ anytime to add feedback to the agent'))
   console.log()
 
   // Set up intervention handler
@@ -199,11 +199,28 @@ export async function runRalph(args: RalphArgs): Promise<void> {
       async () => pendingIntervention,
     )
 
-    // Check if intervention was received during iteration
+    // Check if iteration was interrupted by user
+    if (result.wasInterrupted) {
+      console.log(
+        formatWarning(
+          'Iteration was interrupted - restarting with your feedback',
+        ),
+      )
+      // Store the intervention for next iteration
+      if (result.intervention) {
+        pendingIntervention = result.intervention
+      }
+      // Don't count this as a completed iteration - decrement counter
+      i--
+      state.iteration--
+      continue
+    }
+
+    // Check if intervention was received during iteration (without interrupt)
     if (result.intervention) {
       console.log(
         formatInfo(
-          `Human feedback received during iteration - will be included in next iteration`,
+          `Human feedback received - will be included in next iteration`,
         ),
       )
       pendingIntervention = result.intervention

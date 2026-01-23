@@ -113,7 +113,7 @@ Run Options:
   -c, --config FILE   Path to config file (default: ralph.config.json)
 
 Manual Intervention:
-  Press Ctrl+K during execution to pause and add feedback to the agent.
+  Press Ctrl+\\ during execution to pause and add feedback to the agent.
   Your message will be included in the next iteration's context.
 
 Init Options:

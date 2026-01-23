@@ -6,8 +6,8 @@
 import * as readline from 'readline'
 import { EventEmitter } from 'events'
 
-// Ctrl+K is ASCII code 11 (0x0B)
-const CTRL_K = '\x0B'
+// Ctrl+\ is ASCII code 28 (0x1C) - rarely used in terminals
+const CTRL_BACKSLASH = '\x1C'
 // Ctrl+C is ASCII code 3 (0x03)
 const CTRL_C = '\x03'
 
@@ -17,7 +17,7 @@ export interface InterventionResult {
 }
 
 /**
- * KeyboardListener - Listens for Ctrl+K to trigger manual intervention
+ * KeyboardListener - Listens for Ctrl+\ to trigger manual intervention
  *
  * Usage:
  *   const listener = new KeyboardListener()
@@ -32,6 +32,7 @@ export interface InterventionResult {
 export class KeyboardListener extends EventEmitter {
   private isListening: boolean = false
   private isPaused: boolean = false
+  private isInterrupted: boolean = false
   private rl: readline.Interface | null = null
   private pendingIntervention: InterventionResult | null = null
 
@@ -83,7 +84,8 @@ export class KeyboardListener extends EventEmitter {
     // Don't process keys while paused for input
     if (this.isPaused) return
 
-    if (key === CTRL_K) {
+    if (key === CTRL_BACKSLASH) {
+      this.isInterrupted = true
       this.emit('intervention')
     } else if (key === CTRL_C) {
       // Allow Ctrl+C to exit
@@ -178,6 +180,20 @@ export class KeyboardListener extends EventEmitter {
    */
   isActive(): boolean {
     return this.isListening
+  }
+
+  /**
+   * Check if an interrupt was requested (Ctrl+K pressed)
+   */
+  wasInterrupted(): boolean {
+    return this.isInterrupted
+  }
+
+  /**
+   * Clear the interrupted state
+   */
+  clearInterrupt(): void {
+    this.isInterrupted = false
   }
 }
 

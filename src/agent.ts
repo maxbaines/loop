@@ -230,6 +230,7 @@ export async function runIteration(
 ): Promise<{
   success: boolean
   isComplete: boolean
+  wasInterrupted?: boolean
   taskDescription?: string
   decisions?: string[]
   summary?: string
@@ -245,6 +246,7 @@ export async function runIteration(
   const filesChanged: string[] = []
   let isComplete = false
   let intervention: InterventionResult | null = null
+  let wasInterrupted = false
 
   try {
     // Find Claude Code CLI path
@@ -311,19 +313,21 @@ export async function runIteration(
 
     // Run the agent query
     for await (const message of query({ prompt, options })) {
-      // Check for intervention request between messages
-      if (interventionCallback && keyboard.hasPendingIntervention()) {
-        const pending = keyboard.consumeIntervention()
-        if (pending) {
-          intervention = pending
-          if (verbose) {
-            console.log(
-              formatWarning(
-                `Human intervention received - will be included in next iteration`,
-              ),
-            )
-          }
+      // Check if user pressed Ctrl+K to interrupt
+      if (keyboard.wasInterrupted()) {
+        wasInterrupted = true
+        console.log('')
+        console.log(
+          formatWarning('⏸️  Iteration interrupted by user (Ctrl+\\)'),
+        )
+        // Prompt for input immediately
+        const userMessage = await keyboard.promptForInput()
+        if (userMessage) {
+          intervention = { message: userMessage, timestamp: new Date() }
         }
+        keyboard.clearInterrupt()
+        // Break out of the loop to restart with feedback
+        break
       }
 
       // Handle different message types
@@ -414,9 +418,12 @@ export async function runIteration(
     }
 
     return {
-      success: true,
+      success: !wasInterrupted, // Not successful if interrupted
       isComplete,
-      taskDescription: taskDescription || 'Task completed',
+      wasInterrupted,
+      taskDescription: wasInterrupted
+        ? 'Iteration interrupted by user'
+        : taskDescription || 'Task completed',
       decisions,
       summary,
       filesChanged,
