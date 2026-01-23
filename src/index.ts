@@ -23,6 +23,21 @@ import { spawnSync } from 'child_process'
 const VERSION = '1.0.0'
 
 /**
+ * Check if running inside a Docker container
+ */
+function isInsideDocker(): boolean {
+  // Check for /.dockerenv file (created by Docker)
+  if (existsSync('/.dockerenv')) {
+    return true
+  }
+  // Check for container environment variable
+  if (process.env.DOCKER_CONTAINER === 'true') {
+    return true
+  }
+  return false
+}
+
+/**
  * Parse command line arguments
  */
 function parseArgs(args: string[]): RalphArgs {
@@ -1469,6 +1484,11 @@ async function main(): Promise<void> {
   if (args.iterations < 1) {
     console.error('Error: iterations must be at least 1')
     process.exit(1)
+  }
+
+  // Auto-disable sandbox when running inside Docker
+  if (args.sandbox && isInsideDocker()) {
+    args.sandbox = false
   }
 
   if (args.sandbox) {
