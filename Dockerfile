@@ -45,7 +45,7 @@ RUN mkdir -p /workspace
 WORKDIR /workspace
 
 # Copy loop application
-COPY package.json bun.lockb /app/
+COPY package.json /app/
 WORKDIR /app
 RUN bun install --frozen-lockfile
 COPY src /app/src
