@@ -82,6 +82,13 @@ export interface GitResult extends ToolResult {
 // import type { FileReadInput, FileWriteInput, FileEditInput, ... } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
 // See: https://platform.claude.com/docs/en/agent-sdk/overview
 
+// Intervention Types
+export interface InterventionMessage {
+  message: string
+  timestamp: Date
+  injected: boolean
+}
+
 // Loop State
 export interface LoopState {
   iteration: number
@@ -90,6 +97,7 @@ export interface LoopState {
   progress: ProgressEntry[]
   isComplete: boolean
   lastError?: string
+  pendingIntervention?: InterventionMessage
 }
 
 // Completion Detection

@@ -31,6 +31,7 @@ import {
   formatWarning,
   formatInfo,
 } from './output.ts'
+import { getKeyboardListener, type InterventionResult } from './keyboard.ts'
 
 /**
  * Print the Ralph banner
@@ -109,6 +110,21 @@ export async function runRalph(args: RalphArgs): Promise<void> {
   console.log(formatInfo(`Working Dir: ${config.workingDir}`))
   console.log()
 
+  // Initialize keyboard listener for manual intervention
+  const keyboard = getKeyboardListener()
+  keyboard.start()
+  console.log(formatInfo('Press Ctrl+K anytime to add feedback to the agent'))
+  console.log()
+
+  // Set up intervention handler
+  let pendingIntervention: InterventionResult | null = null
+  keyboard.on('intervention', async () => {
+    const message = await keyboard.promptForInput()
+    if (message) {
+      pendingIntervention = { message, timestamp: new Date() }
+    }
+  })
+
   // Initialize loop state
   // For git mode, always start at 0 since we don't track iteration numbers
   const state: LoopState = {
@@ -155,15 +171,43 @@ export async function runRalph(args: RalphArgs): Promise<void> {
       progressPath,
     )
     const agentsMd = loadAgentsMd(config.workingDir)
+
+    // Include any pending intervention in the progress summary
+    let enhancedProgressSummary = progressSummary
+    if (pendingIntervention) {
+      enhancedProgressSummary += `\n\n### 🧑 Human Feedback (${pendingIntervention.timestamp.toLocaleTimeString()}):\n${pendingIntervention.message}\n\nPlease acknowledge and incorporate this feedback.`
+      console.log(
+        formatWarning(
+          `Including human feedback: "${pendingIntervention.message.substring(0, 50)}${pendingIntervention.message.length > 50 ? '...' : ''}"`,
+        ),
+      )
+      pendingIntervention = null // Clear after including
+    }
+
     const systemPrompt = createSystemPrompt(
       prdSummary,
-      progressSummary,
+      enhancedProgressSummary,
       agentsMd,
     )
 
-    // Run the iteration
+    // Run the iteration with intervention callback
     console.log(formatInfo('Running iteration...'))
-    const result = await runIteration(config, systemPrompt, config.verbose)
+    const result = await runIteration(
+      config,
+      systemPrompt,
+      config.verbose,
+      async () => pendingIntervention,
+    )
+
+    // Check if intervention was received during iteration
+    if (result.intervention) {
+      console.log(
+        formatInfo(
+          `Human feedback received during iteration - will be included in next iteration`,
+        ),
+      )
+      pendingIntervention = result.intervention
+    }
 
     if (result.success) {
       console.log(formatSuccess(result.taskDescription || 'Task completed'))
@@ -216,6 +260,9 @@ export async function runRalph(args: RalphArgs): Promise<void> {
       }
     }
   }
+
+  // Stop keyboard listener
+  keyboard.stop()
 
   // Final status
   console.log()

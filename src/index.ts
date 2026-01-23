@@ -112,6 +112,10 @@ Run Options:
   --hitl              Human-in-the-loop mode (pause between iterations)
   -c, --config FILE   Path to config file (default: ralph.config.json)
 
+Manual Intervention:
+  Press Ctrl+K during execution to pause and add feedback to the agent.
+  Your message will be included in the next iteration's context.
+
 Init Options:
   --analyze           Analyze existing codebase for context
   --output FILE       Output file (default: prd.md)

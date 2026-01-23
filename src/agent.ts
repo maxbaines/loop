@@ -17,7 +17,13 @@ import {
   formatFileChange,
   formatInfo,
   formatThought,
+  formatWarning,
 } from './output.ts'
+import {
+  getKeyboardListener,
+  formatInterventionMessage,
+  type InterventionResult,
+} from './keyboard.ts'
 
 /**
  * Find the Claude Code CLI executable path
@@ -214,11 +220,13 @@ function createHooks(_verbose: boolean) {
 
 /**
  * Run a single Ralph iteration using the Claude Agent SDK
+ * Supports manual intervention via Ctrl+K during execution
  */
 export async function runIteration(
   config: RalphConfig,
   systemPrompt: string,
   verbose: boolean = false,
+  interventionCallback?: () => Promise<InterventionResult | null>,
 ): Promise<{
   success: boolean
   isComplete: boolean
@@ -228,6 +236,7 @@ export async function runIteration(
   filesChanged?: string[]
   error?: string
   output?: string
+  intervention?: InterventionResult
 }> {
   let fullOutput = ''
   let taskDescription = ''
@@ -235,6 +244,7 @@ export async function runIteration(
   let summary = ''
   const filesChanged: string[] = []
   let isComplete = false
+  let intervention: InterventionResult | null = null
 
   try {
     // Find Claude Code CLI path
@@ -283,11 +293,39 @@ export async function runIteration(
       hooks: createHooks(verbose),
     }
 
-    const prompt =
+    let prompt =
       'Analyze the PRD and progress, then implement the highest-priority incomplete task. Remember to run feedback loops and commit your changes.'
+
+    // Check for pending intervention to include in initial prompt
+    const keyboard = getKeyboardListener()
+    if (keyboard.hasPendingIntervention()) {
+      const pending = keyboard.consumeIntervention()
+      if (pending) {
+        intervention = pending
+        prompt += formatInterventionMessage(pending)
+        if (verbose) {
+          console.log(formatWarning(`Including human feedback in prompt`))
+        }
+      }
+    }
 
     // Run the agent query
     for await (const message of query({ prompt, options })) {
+      // Check for intervention request between messages
+      if (interventionCallback && keyboard.hasPendingIntervention()) {
+        const pending = keyboard.consumeIntervention()
+        if (pending) {
+          intervention = pending
+          if (verbose) {
+            console.log(
+              formatWarning(
+                `Human intervention received - will be included in next iteration`,
+              ),
+            )
+          }
+        }
+      }
+
       // Handle different message types
       if (message.type === 'assistant') {
         const assistantMsg = message as SDKAssistantMessage
@@ -383,6 +421,7 @@ export async function runIteration(
       summary,
       filesChanged,
       output: fullOutput,
+      intervention: intervention || undefined,
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
