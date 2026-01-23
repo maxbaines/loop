@@ -394,14 +394,7 @@ export function formatThought(text: string): string {
 
   for (const line of lines) {
     if (line.trim()) {
-      output +=
-        colors.neonMagenta +
-        '💭 ' +
-        colors.reset +
-        colors.dim +
-        line +
-        colors.reset +
-        '\n'
+      output += colors.neonMagenta + '💭 ' + line + colors.reset + '\n'
     } else {
       output += '\n'
     }
