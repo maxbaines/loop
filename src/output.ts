@@ -74,30 +74,85 @@ function getVisualWidth(str: string): number {
 }
 
 /**
- * Format a tool call header
+ * Format a tool call header - clean, compact output
  */
 export function formatToolCall(
   name: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): string {
-  const title = `🔧 ${name}`
+  // Extract the most relevant info based on tool type
+  let detail = ''
 
-  let output = '\n'
-  output += colors.blue + '━'.repeat(65) + colors.reset + '\n'
-  output += '\n'
-  output += colors.neonCyan + colors.bold + title + colors.reset + '\n'
-
-  // Format input - just indented with color
-  const inputStr = JSON.stringify(input, null, 2)
-  const inputLines = inputStr.split('\n')
-
-  for (const line of inputLines) {
-    output += colors.gray + line + colors.reset + '\n'
+  switch (name) {
+    case 'Write':
+    case 'Read':
+    case 'Edit':
+      // File tools - show file path only
+      if (input.file_path) {
+        detail = String(input.file_path)
+      }
+      break
+    case 'Bash':
+      // Bash - show command (truncated if long)
+      if (input.command) {
+        const cmd = String(input.command)
+        detail = cmd.length > 60 ? cmd.substring(0, 57) + '...' : cmd
+      }
+      break
+    case 'Glob':
+      // Glob - show pattern
+      if (input.pattern) {
+        detail = String(input.pattern)
+      }
+      break
+    case 'Grep':
+      // Grep - show pattern and path
+      if (input.pattern) {
+        detail = String(input.pattern)
+        if (input.path) {
+          detail += ` in ${input.path}`
+        }
+      }
+      break
+    case 'WebSearch':
+      // Web search - show query
+      if (input.query) {
+        const query = String(input.query)
+        detail = query.length > 50 ? query.substring(0, 47) + '...' : query
+      }
+      break
+    case 'WebFetch':
+      // Web fetch - show URL
+      if (input.url) {
+        detail = String(input.url)
+      }
+      break
+    default:
+      // For other tools, show first string value if any
+      for (const [key, value] of Object.entries(input)) {
+        if (typeof value === 'string' && value.length < 80) {
+          detail = value
+          break
+        }
+      }
   }
 
-  output += '\n'
+  // Format: 🔧 ToolName → detail
+  if (detail) {
+    return (
+      colors.neonCyan +
+      '🔧 ' +
+      colors.bold +
+      name +
+      colors.reset +
+      colors.gray +
+      ' → ' +
+      detail +
+      colors.reset
+    )
+  }
 
-  return output
+  return colors.neonCyan + '🔧 ' + colors.bold + name + colors.reset
 }
 
 /**
@@ -105,15 +160,15 @@ export function formatToolCall(
  */
 export function formatToolResult(
   result: string,
-  type: 'success' | 'error' | 'info' = 'info'
+  type: 'success' | 'error' | 'info' = 'info',
 ): string {
   const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'
   const color =
     type === 'success'
       ? colors.neonGreen
       : type === 'error'
-      ? colors.neonRed
-      : colors.cyan
+        ? colors.neonRed
+        : colors.cyan
 
   let output = ''
   output += color + `${icon} Result:` + colors.reset + '\n'
@@ -139,7 +194,7 @@ export function formatToolResult(
  */
 export function formatCodeBlock(
   code: string,
-  type: 'new' | 'changed' | 'deleted' | 'info' = 'info'
+  type: 'new' | 'changed' | 'deleted' | 'info' = 'info',
 ): string {
   let bgColor: string
   let fgColor: string
@@ -189,7 +244,7 @@ export function formatCodeBlock(
 export function formatFileChange(
   path: string,
   type: 'create' | 'modify' | 'delete',
-  content?: string
+  content?: string,
 ): string {
   let icon: string
   let color: string
@@ -242,7 +297,7 @@ export function formatFileChange(
 export function formatBox(
   title: string,
   content?: string,
-  color: keyof typeof colors = 'cyan'
+  color: keyof typeof colors = 'cyan',
 ): string {
   const colorCode = colors[color] || colors.cyan
 
@@ -275,7 +330,7 @@ export function log(message: string, color?: keyof typeof colors): void {
  */
 export function formatDivider(
   title?: string,
-  color: keyof typeof colors = 'blue'
+  color: keyof typeof colors = 'blue',
 ): string {
   const width = 65
   const colorCode = colors[color] || colors.blue

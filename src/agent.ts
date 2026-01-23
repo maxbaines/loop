@@ -8,10 +8,6 @@ import {
   type SDKResultMessage,
   type SDKAssistantMessage,
   type Options,
-  type HookInput,
-  type HookJSONOutput,
-  type PreToolUseHookInput,
-  type PostToolUseHookInput,
 } from '@anthropic-ai/claude-agent-sdk'
 import { existsSync } from 'fs'
 import type { RalphConfig } from './types.ts'
@@ -202,44 +198,12 @@ This signals that the entire PRD has been implemented and Ralph should stop.
 /**
  * Create hook callbacks for tool execution monitoring
  */
-function createHooks(verbose: boolean) {
+function createHooks(_verbose: boolean) {
+  // Hooks are available but we now use inline tool_use logging for cleaner output
+  // The formatToolCall function provides all the detail we need
   return {
-    PreToolUse: [
-      {
-        hooks: [
-          async (
-            input: HookInput,
-            _toolUseID: string | undefined,
-            _options: { signal: AbortSignal },
-          ): Promise<HookJSONOutput> => {
-            if (verbose && input.hook_event_name === 'PreToolUse') {
-              const preToolInput = input as PreToolUseHookInput
-              console.log(formatInfo(`🔧 Running: ${preToolInput.tool_name}`))
-            }
-            return { continue: true }
-          },
-        ],
-      },
-    ],
-    PostToolUse: [
-      {
-        hooks: [
-          async (
-            input: HookInput,
-            _toolUseID: string | undefined,
-            _options: { signal: AbortSignal },
-          ): Promise<HookJSONOutput> => {
-            if (verbose && input.hook_event_name === 'PostToolUse') {
-              const postToolInput = input as PostToolUseHookInput
-              console.log(
-                formatInfo(`✅ Completed: ${postToolInput.tool_name}`),
-              )
-            }
-            return { continue: true }
-          },
-        ],
-      },
-    ],
+    PreToolUse: [],
+    PostToolUse: [],
   }
 }
 
