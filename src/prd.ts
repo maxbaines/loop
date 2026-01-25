@@ -169,7 +169,7 @@ function prdToMarkdown(prd: PrdJson): string {
       } else if (item.status === 'working') {
         checkbox = '[WORKING]'
       }
-      lines.push(`- ${checkbox} **${item.description}**`)
+      lines.push(`- ${checkbox} ${item.description}`)
 
       for (const step of item.steps) {
         lines.push(`  - ${step}`)
