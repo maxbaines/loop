@@ -1322,7 +1322,7 @@ async function handleInit(args: string[]): Promise<void> {
  * Handle do command - generate PRD and run it to completion
  */
 async function handleDo(args: string[]): Promise<void> {
-  let description = ''
+  let descriptionParts: string[] = []
   let hitl = false
   let maxIterations: number | undefined
   let configFile: string | undefined
@@ -1343,11 +1343,14 @@ async function handleDo(args: string[]): Promise<void> {
       default:
         // Collect description (non-flag arguments)
         if (!arg.startsWith('-')) {
-          description += (description ? ' ' : '') + arg
+          descriptionParts.push(arg)
         }
         break
     }
   }
+
+  // Join with newlines to preserve multi-line input
+  const description = descriptionParts.join('\n')
 
   if (!description) {
     console.error('Error: Please provide a task description')
