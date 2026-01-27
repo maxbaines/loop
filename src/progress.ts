@@ -217,21 +217,6 @@ export function createProgressEntry(
 }
 
 /**
- * Clear progress file (for new sprint)
- */
-export function clearProgress(filePath: string): void {
-  if (existsSync(filePath)) {
-    const header = `# Ralph Progress Log
-# Created: ${new Date().toISOString()}
-# This file tracks progress between Ralph iterations.
-# Delete this file when your sprint is complete.
-
-`
-    writeFileSync(filePath, header, 'utf-8')
-  }
-}
-
-/**
  * Get the last iteration number
  */
 export function getLastIteration(filePath: string): number {

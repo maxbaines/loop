@@ -9,15 +9,8 @@ import { runRalph } from './ralph.ts'
 import { generateProjectFiles } from './generate.ts'
 import { loadConfig } from './config.ts'
 import { savePrd } from './prd.ts'
-import type { PrdJson, PrdItem } from './types.ts'
-import {
-  existsSync,
-  mkdirSync,
-  copyFileSync,
-  writeFileSync,
-  readFileSync,
-  rmSync,
-} from 'fs'
+import type { PrdJson } from './types.ts'
+import { existsSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from 'fs'
 import * as readline from 'readline'
 import { join, dirname } from 'path'
 import { spawnSync } from 'child_process'
@@ -342,158 +335,9 @@ async function handleNew(args: string[]): Promise<void> {
   console.log(`   Location: ${projDir}`)
   console.log('')
 
-  // Create project directory structure
-  mkdirSync(projDir, { recursive: true })
-  mkdirSync(join(projDir, 'docker'), { recursive: true })
+  // Use shared createProjectFolder function
+  createProjectFolder(name, true)
 
-  // Find and copy loop binary (use getBinaryPath for compiled binaries)
-  const currentBinary = getBinaryPath()
-  const possibleBinaries = [
-    currentBinary,
-    join(process.cwd(), 'loop'),
-    '/usr/local/bin/loop',
-  ]
-
-  let binarySrc: string | null = null
-  for (const p of possibleBinaries) {
-    if (p && existsSync(p)) {
-      binarySrc = p
-      break
-    }
-  }
-
-  if (binarySrc) {
-    copyFileSync(binarySrc, join(projDir, 'loop'))
-    // Make executable
-    spawnSync('chmod', ['+x', join(projDir, 'loop')])
-    console.log('   ✓ Copied loop binary')
-  } else {
-    console.log('   ⚠ Could not find loop binary to copy')
-  }
-
-  // Find and copy sandbox.sh
-  const possibleSandboxPaths = [
-    join(process.cwd(), 'docker', 'sandbox.sh'),
-    join(dirname(currentBinary || ''), 'docker', 'sandbox.sh'),
-    join(dirname(currentBinary || ''), '..', 'docker', 'sandbox.sh'),
-    '/usr/local/share/loop/docker/sandbox.sh',
-  ]
-
-  let sandboxSrc: string | null = null
-  for (const p of possibleSandboxPaths) {
-    if (existsSync(p)) {
-      sandboxSrc = p
-      break
-    }
-  }
-
-  if (sandboxSrc) {
-    copyFileSync(sandboxSrc, join(projDir, 'docker', 'sandbox.sh'))
-    spawnSync('chmod', ['+x', join(projDir, 'docker', 'sandbox.sh')])
-    console.log('   ✓ Copied docker/sandbox.sh')
-  }
-
-  // Copy or create .env
-  const possibleEnvPaths = [
-    join(process.cwd(), '.env'),
-    join(dirname(currentBinary || ''), '.env'),
-  ]
-
-  let envSrc: string | null = null
-  for (const p of possibleEnvPaths) {
-    if (existsSync(p)) {
-      envSrc = p
-      break
-    }
-  }
-
-  if (envSrc) {
-    copyFileSync(envSrc, join(projDir, '.env'))
-    console.log('   ✓ Copied .env')
-  } else {
-    // Create default .env
-    const defaultEnv = `# Loop Configuration
-ANTHROPIC_API_KEY=your-api-key-here
-RALPH_MODEL=claude-sonnet-4-20250514
-RALPH_MAX_TOKENS=8192
-RALPH_VERBOSE=false
-`
-    writeFileSync(join(projDir, '.env'), defaultEnv)
-    console.log('   ✓ Created .env (please add your API key)')
-  }
-
-  // Create .gitignore
-  const gitignore = `.env
-progress.txt
-node_modules/
-dist/
-*.log
-.DS_Store
-`
-  writeFileSync(join(projDir, '.gitignore'), gitignore)
-  console.log('   ✓ Created .gitignore')
-
-  // Copy Dockerfile and docker scripts for sandbox support
-  const possibleDockerfilePaths = [
-    join(process.cwd(), 'Dockerfile'),
-    join(dirname(currentBinary || ''), 'Dockerfile'),
-    join(dirname(currentBinary || ''), '..', 'Dockerfile'),
-    '/usr/local/share/loop/Dockerfile',
-  ]
-
-  let dockerfileSrc: string | null = null
-  for (const p of possibleDockerfilePaths) {
-    if (existsSync(p)) {
-      dockerfileSrc = p
-      break
-    }
-  }
-
-  if (dockerfileSrc) {
-    copyFileSync(dockerfileSrc, join(projDir, 'Dockerfile'))
-    console.log('   ✓ Copied Dockerfile')
-
-    // Also copy entrypoint.sh and terminal.sh from the same docker directory
-    const dockerDir = dirname(dockerfileSrc)
-    const entrypointSrc = join(dockerDir, 'docker', 'entrypoint.sh')
-    const terminalSrc = join(dockerDir, 'docker', 'terminal.sh')
-
-    // Try alternate paths if docker/ subdirectory doesn't exist
-    const entrypointPaths = [
-      entrypointSrc,
-      join(dockerDir, 'entrypoint.sh'),
-      join(process.cwd(), 'docker', 'entrypoint.sh'),
-    ]
-    const terminalPaths = [
-      terminalSrc,
-      join(dockerDir, 'terminal.sh'),
-      join(process.cwd(), 'docker', 'terminal.sh'),
-    ]
-
-    for (const p of entrypointPaths) {
-      if (existsSync(p)) {
-        copyFileSync(p, join(projDir, 'docker', 'entrypoint.sh'))
-        spawnSync('chmod', ['+x', join(projDir, 'docker', 'entrypoint.sh')])
-        console.log('   ✓ Copied docker/entrypoint.sh')
-        break
-      }
-    }
-
-    for (const p of terminalPaths) {
-      if (existsSync(p)) {
-        copyFileSync(p, join(projDir, 'docker', 'terminal.sh'))
-        spawnSync('chmod', ['+x', join(projDir, 'docker', 'terminal.sh')])
-        console.log('   ✓ Copied docker/terminal.sh')
-        break
-      }
-    }
-  } else {
-    console.log(
-      '   ⚠ Could not find Dockerfile to copy (sandbox will not work)',
-    )
-  }
-
-  console.log('')
   console.log('✅ Project created successfully!')
   console.log('')
   console.log('   Next steps:')
@@ -504,9 +348,13 @@ dist/
 }
 
 /**
- * Create project folder for sandbox (reuses logic from handleNew)
+ * Create project folder with all necessary files
+ * Used by both 'new' command and 'sandbox' command
+ * @param name - Project name
+ * @param verbose - Whether to print detailed output (default: true)
+ * @returns Path to the created project directory
  */
-function createProjectFolder(name: string): string {
+function createProjectFolder(name: string, verbose: boolean = true): string {
   const projDir = join(process.cwd(), 'proj', name)
 
   // If project already exists, just return the path
@@ -514,8 +362,10 @@ function createProjectFolder(name: string): string {
     return projDir
   }
 
-  console.log(`📁 Creating project folder: proj/${name}`)
-  console.log('')
+  if (verbose) {
+    console.log(`📁 Creating project folder: proj/${name}`)
+    console.log('')
+  }
 
   // Create project directory structure
   mkdirSync(projDir, { recursive: true })
@@ -540,7 +390,9 @@ function createProjectFolder(name: string): string {
   if (binarySrc) {
     copyFileSync(binarySrc, join(projDir, 'loop'))
     spawnSync('chmod', ['+x', join(projDir, 'loop')])
-    console.log('   ✓ Copied loop binary')
+    if (verbose) console.log('   ✓ Copied loop binary')
+  } else {
+    if (verbose) console.log('   ⚠ Could not find loop binary to copy')
   }
 
   // Find and copy sandbox.sh
@@ -555,7 +407,7 @@ function createProjectFolder(name: string): string {
     if (existsSync(p)) {
       copyFileSync(p, join(projDir, 'docker', 'sandbox.sh'))
       spawnSync('chmod', ['+x', join(projDir, 'docker', 'sandbox.sh')])
-      console.log('   ✓ Copied docker/sandbox.sh')
+      if (verbose) console.log('   ✓ Copied docker/sandbox.sh')
       break
     }
   }
@@ -576,7 +428,7 @@ function createProjectFolder(name: string): string {
 
   if (envSrc) {
     copyFileSync(envSrc, join(projDir, '.env'))
-    console.log('   ✓ Copied .env')
+    if (verbose) console.log('   ✓ Copied .env')
   } else {
     const defaultEnv = `# Loop Configuration
 ANTHROPIC_API_KEY=your-api-key-here
@@ -585,7 +437,7 @@ RALPH_MAX_TOKENS=8192
 RALPH_VERBOSE=false
 `
     writeFileSync(join(projDir, '.env'), defaultEnv)
-    console.log('   ✓ Created .env (please add your API key)')
+    if (verbose) console.log('   ✓ Created .env (please add your API key)')
   }
 
   // Create .gitignore
@@ -597,7 +449,7 @@ dist/
 .DS_Store
 `
   writeFileSync(join(projDir, '.gitignore'), gitignore)
-  console.log('   ✓ Created .gitignore')
+  if (verbose) console.log('   ✓ Created .gitignore')
 
   // Copy Dockerfile and docker scripts
   const possibleDockerfilePaths = [
@@ -617,7 +469,7 @@ dist/
 
   if (dockerfileSrc) {
     copyFileSync(dockerfileSrc, join(projDir, 'Dockerfile'))
-    console.log('   ✓ Copied Dockerfile')
+    if (verbose) console.log('   ✓ Copied Dockerfile')
 
     const dockerDir = dirname(dockerfileSrc)
     const entrypointPaths = [
@@ -635,7 +487,7 @@ dist/
       if (existsSync(p)) {
         copyFileSync(p, join(projDir, 'docker', 'entrypoint.sh'))
         spawnSync('chmod', ['+x', join(projDir, 'docker', 'entrypoint.sh')])
-        console.log('   ✓ Copied docker/entrypoint.sh')
+        if (verbose) console.log('   ✓ Copied docker/entrypoint.sh')
         break
       }
     }
@@ -644,13 +496,18 @@ dist/
       if (existsSync(p)) {
         copyFileSync(p, join(projDir, 'docker', 'terminal.sh'))
         spawnSync('chmod', ['+x', join(projDir, 'docker', 'terminal.sh')])
-        console.log('   ✓ Copied docker/terminal.sh')
+        if (verbose) console.log('   ✓ Copied docker/terminal.sh')
         break
       }
     }
+  } else {
+    if (verbose)
+      console.log(
+        '   ⚠ Could not find Dockerfile to copy (sandbox will not work)',
+      )
   }
 
-  console.log('')
+  if (verbose) console.log('')
   return projDir
 }
 

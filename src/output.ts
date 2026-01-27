@@ -36,43 +36,6 @@ export const colors = {
   bgCyan: '\x1b[48;5;23m',
 }
 
-// Box drawing characters
-const box = {
-  topLeft: '╭',
-  topRight: '╮',
-  bottomLeft: '╰',
-  bottomRight: '╯',
-  horizontal: '─',
-  vertical: '│',
-  thinTopLeft: '┌',
-  thinTopRight: '┐',
-  thinBottomLeft: '└',
-  thinBottomRight: '┘',
-  thinHorizontal: '─',
-  thinVertical: '│',
-}
-
-/**
- * Get the visual width of a string (accounting for emoji and special characters)
- */
-function getVisualWidth(str: string): number {
-  // Remove ANSI codes
-  const cleaned = str.replace(/\x1b\[[0-9;]*m/g, '')
-
-  // Count visual width (emojis count as 2, regular chars as 1)
-  let width = 0
-  for (const char of cleaned) {
-    const code = char.codePointAt(0) || 0
-    // Emoji and special characters typically take 2 spaces
-    if (code > 0x1f000) {
-      width += 2
-    } else {
-      width += 1
-    }
-  }
-  return width
-}
-
 /**
  * Format a tool call header - clean, compact output
  */
@@ -156,95 +119,11 @@ export function formatToolCall(
 }
 
 /**
- * Format a tool result
- */
-export function formatToolResult(
-  result: string,
-  type: 'success' | 'error' | 'info' = 'info',
-): string {
-  const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'
-  const color =
-    type === 'success'
-      ? colors.neonGreen
-      : type === 'error'
-        ? colors.neonRed
-        : colors.cyan
-
-  let output = ''
-  output += color + `${icon} Result:` + colors.reset + '\n'
-
-  // Truncate long results
-  const maxLength = 500
-  const displayResult =
-    result.length > maxLength ? result.substring(0, maxLength) + '...' : result
-
-  // Format result with indentation
-  const lines = displayResult.split('\n')
-  for (const line of lines) {
-    output += colors.gray + '  ' + colors.reset + line + '\n'
-  }
-
-  output += '\n'
-
-  return output
-}
-
-/**
- * Format a code block with background color (full width, no box)
- */
-export function formatCodeBlock(
-  code: string,
-  type: 'new' | 'changed' | 'deleted' | 'info' = 'info',
-): string {
-  let bgColor: string
-  let fgColor: string
-  let label: string
-
-  switch (type) {
-    case 'new':
-      bgColor = colors.bgGreen
-      fgColor = colors.neonGreen
-      label = '▶ NEW'
-      break
-    case 'changed':
-      bgColor = colors.bgYellow
-      fgColor = colors.neonYellow
-      label = '▶ CHANGED'
-      break
-    case 'deleted':
-      bgColor = colors.bgRed
-      fgColor = colors.neonRed
-      label = '▶ DELETED'
-      break
-    default:
-      bgColor = colors.bgDarkGray
-      fgColor = colors.cyan
-      label = ''
-  }
-
-  let output = ''
-
-  // Label line if present
-  if (label) {
-    output += fgColor + label + colors.reset + '\n'
-  }
-
-  // Content lines - full width with background
-  const lines = code.split('\n')
-  for (const line of lines) {
-    output += bgColor + fgColor + line + colors.reset + '\n'
-  }
-
-  return output
-}
-
-/**
  * Format a file change notification - compact single line
  */
 export function formatFileChange(
   path: string,
   type: 'create' | 'modify' | 'delete',
-  _content?: string,
 ): string {
   let icon: string
   let color: string
