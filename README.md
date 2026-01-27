@@ -169,10 +169,72 @@ src/
 ## SDK Features Used
 
 - **Built-in Tools**: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch, AskUserQuestion
+- **Skills**: Specialized capabilities Claude invokes autonomously (see below)
 - **System Prompt**: Custom prompt appended to Claude Code's default
 - **Permission Mode**: `acceptEdits` for autonomous file operations
 - **Hooks**: PreToolUse and PostToolUse for monitoring tool execution
-- **Allowed Tools**: Auto-allow safe read-only tools (Read, Glob, Grep)
+- **Allowed Tools**: Auto-allow safe read-only tools (Read, Glob, Grep, Skill)
+
+## Skills
+
+Skills extend Claude with specialized capabilities that are automatically invoked when relevant. Loop loads Skills from:
+
+1. **Project Skills** (`.claude/skills/`): Shared with your team via git
+2. **User Skills** (`~/.claude/skills/`): Personal Skills across all projects
+
+### Built-in Skills
+
+| Skill           | Description                                                    |
+| --------------- | -------------------------------------------------------------- |
+| **code-review** | Thorough code review with security, quality, and design checks |
+
+### Creating Custom Skills
+
+Create a `SKILL.md` file in `.claude/skills/<skill-name>/`:
+
+```markdown
+---
+description: 'Invoke when [specific trigger description]'
+---
+
+# Skill Name
+
+## Instructions
+
+[Detailed instructions for Claude to follow]
+```
+
+The `description` field determines when Claude invokes your Skill. Be specific about trigger conditions.
+
+### Example: Custom Deployment Skill
+
+```
+.claude/skills/deploy/SKILL.md
+```
+
+```markdown
+---
+description: 'Invoke when deploying to production, staging, or when asked about deployment procedures'
+---
+
+# Deployment Skill
+
+## Pre-deployment Checklist
+
+- [ ] All tests pass
+- [ ] Version bumped
+- [ ] Changelog updated
+
+## Deployment Steps
+
+1. Build the project
+2. Run smoke tests
+3. Deploy to staging first
+4. Verify staging
+5. Deploy to production
+```
+
+For more details, see the [Claude Agent SDK Skills documentation](https://platform.claude.com/docs/en/agent-sdk/skills).
 
 ## License
 

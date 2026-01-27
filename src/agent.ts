@@ -519,7 +519,9 @@ export async function runIteration(
       maxTurns: 50, // Allow up to 50 tool calls per iteration
       // Path to Claude Code CLI executable (auto-detected)
       pathToClaudeCodeExecutable: claudeCodePath,
-      // Use Claude Code's default tools plus web and interactive tools
+      // Load Skills from project first, then user directory
+      settingSources: ['project', 'user'],
+      // Use Claude Code's default tools plus web, interactive tools, and Skills
       tools: [
         'Read',
         'Write',
@@ -530,6 +532,7 @@ export async function runIteration(
         'WebSearch',
         'WebFetch',
         'AskUserQuestion',
+        'Skill',
       ],
       // Use custom system prompt with append
       systemPrompt: {
@@ -539,7 +542,7 @@ export async function runIteration(
       },
       // Auto-allow tools for autonomous operation
       // In production, this runs in a sandboxed Docker container
-      allowedTools: ['Read', 'Glob', 'Grep', 'Bash', 'Write', 'Edit'],
+      allowedTools: ['Read', 'Glob', 'Grep', 'Bash', 'Write', 'Edit', 'Skill'],
       // Permission mode for autonomous operation - acceptEdits allows file changes
       permissionMode: 'acceptEdits',
       // Add hooks for tool execution monitoring
