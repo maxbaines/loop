@@ -339,7 +339,13 @@ Example CompleteTask call:
 }
 \`\`\`
 
-After calling CompleteTask, report:
+After calling CompleteTask, you MUST output this format:
+
+## Changes Made
+[1-2 sentences: what changed and why]
+
+## Decisions
+- [Key decision or tradeoff, or "None"]
 
 ## Completed: ${task.description}
 `
