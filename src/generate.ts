@@ -79,43 +79,49 @@ Return ONLY the JSON object.`
  */
 const AGENTS_GENERATION_PROMPT = `Generate an AGENTS.md file for AI coding agents.
 
+## CRITICAL RULES FOR PROJECT OVERVIEW
+
+- ONLY describe what is EXPLICITLY stated in the provided documentation
+- Do NOT infer, assume, or guess technologies, frameworks, platforms, or features
+- If the documentation doesn't clearly state what the project does, say "See README for project details"
+- Do NOT mention iOS, Android, web, mobile, desktop, etc. unless explicitly documented
+- Do NOT assume programming language purposes (e.g., Swift does NOT mean iOS)
+
 ## Required Sections
 
 # AGENTS.md
 
 ## Project overview
-[One sentence: what this project does]
+[One sentence describing what this project does - ONLY from documentation]
 
 ## Setup commands
-- Install: \`[command]\`
-- Build: \`[command]\`
-- Run: \`[command]\`
+- Install: \`[command from docs or "see README"]\`
+- Build: \`[command from docs or "see README"]\`
+- Run: \`[command from docs or "see README"]\`
 
 ## Back pressure (required checks before commit)
-- Build: \`[command]\`
-- Typecheck: \`[command]\`
-- Lint: \`[command]\`
-- Test: \`[command]\`
+- Build: \`[command if documented]\`
+- Typecheck: \`[command if documented]\`
+- Lint: \`[command if documented]\`
+- Test: \`[command if documented]\`
 
 ## Testing instructions
-- [How to run tests]
-- All tests must pass before merge
+- [From documentation only]
 
 ## Code style
-- [Key conventions for this language/framework]
+- [From documentation only]
 
 ## What NOT to do
 - Don't skip tests
 - Don't commit with failing checks
-- [Project-specific anti-patterns]
 
-## Rules
+## Output Rules
 
 1. Output ONLY Markdown - no code block wrappers
 2. Include ALL sections above
-3. Use actual commands for the detected project type
-4. Back pressure section is critical - always include real commands
-5. NEVER hardcode specific paths, project names, or scheme names in commands`
+3. Use ONLY commands found in documentation (package.json scripts, README, etc.)
+4. If a command is not documented, write "see project documentation"
+5. NEVER invent or assume commands, technologies, or project purposes`
 
 /**
  * Generate content using Claude Agent SDK
@@ -397,128 +403,40 @@ export async function generateAndSavePrd(
 }
 
 /**
- * Detect project type from files
- */
-function detectProjectType(files: string[]): string {
-  if (
-    files.some(
-      (f) => f.endsWith('Package.swift') || f.includes('Package.swift'),
-    )
-  ) {
-    return 'Swift (Package.swift detected)'
-  }
-  if (files.some((f) => f.endsWith('Cargo.toml') || f.includes('Cargo.toml'))) {
-    return 'Rust (Cargo.toml detected)'
-  }
-  if (
-    files.some((f) => f.endsWith('package.json') || f.includes('package.json'))
-  ) {
-    const hasTsConfig = files.some(
-      (f) => f.endsWith('tsconfig.json') || f.includes('tsconfig.json'),
-    )
-    return hasTsConfig
-      ? 'TypeScript/Node.js (package.json + tsconfig.json detected)'
-      : 'JavaScript/Node.js (package.json detected)'
-  }
-  if (files.some((f) => f.endsWith('go.mod') || f.includes('go.mod'))) {
-    return 'Go (go.mod detected)'
-  }
-  if (
-    files.some(
-      (f) =>
-        f.endsWith('pyproject.toml') ||
-        f.includes('pyproject.toml') ||
-        f.endsWith('requirements.txt') ||
-        f.includes('requirements.txt'),
-    )
-  ) {
-    return 'Python (pyproject.toml or requirements.txt detected)'
-  }
-  if (
-    files.some(
-      (f) =>
-        f.endsWith('CMakeLists.txt') ||
-        f.includes('CMakeLists.txt') ||
-        f.endsWith('Makefile') ||
-        f.includes('Makefile'),
-    )
-  ) {
-    return 'C/C++ (CMakeLists.txt or Makefile detected)'
-  }
-
-  // Check by file extensions
-  if (files.some((f) => f.endsWith('.swift'))) return 'Swift'
-  if (files.some((f) => f.endsWith('.rs'))) return 'Rust'
-  if (files.some((f) => f.endsWith('.ts') || f.endsWith('.tsx')))
-    return 'TypeScript'
-  if (files.some((f) => f.endsWith('.js') || f.endsWith('.jsx')))
-    return 'JavaScript'
-  if (files.some((f) => f.endsWith('.go'))) return 'Go'
-  if (files.some((f) => f.endsWith('.py'))) return 'Python'
-  if (files.some((f) => f.endsWith('.c') || f.endsWith('.cpp'))) return 'C/C++'
-
-  return 'Unknown'
-}
-
-/**
  * Generate AGENTS.md from project description
  */
 export async function generateAgentsMd(
   description: string,
   config: RalphConfig,
   options: {
-    existingFiles?: string[]
     projectDocs?: string
     analyzeCodebase?: boolean
   } = {},
 ): Promise<string> {
-  // Detect project type
-  const projectType = options.existingFiles
-    ? detectProjectType(options.existingFiles)
-    : 'Unknown'
-
-  // Build a more structured user message
+  // Build prompt focused on documentation only
   let prompt = `Generate a complete AGENTS.md file for this project.
 
-IMPORTANT: Your output MUST include ALL required sections (Project overview, Setup commands, Back pressure, Testing instructions, Code style, What NOT to do). Do NOT just output a file tree.
+IMPORTANT: 
+- Your output MUST include ALL required sections (Project overview, Setup commands, Back pressure, Testing instructions, Code style, What NOT to do)
+- ONLY use information from the provided documentation below
+- Do NOT infer or assume anything not explicitly stated in the docs
 
-## Project Information
+## User Request
 
-**Description:** ${
-    description || 'Analyze this project and generate appropriate AGENTS.md'
-  }
-
-**Detected Project Type:** ${projectType}
+${description || 'Generate AGENTS.md based on project documentation'}
 `
 
   if (options.analyzeCodebase) {
-    prompt += `\nPlease use the Glob and Read tools to analyze the codebase and understand the build/test setup before generating AGENTS.md.\n`
-  }
-
-  if (options.existingFiles && options.existingFiles.length > 0) {
-    const keyFiles = options.existingFiles
-      .filter(
-        (f) =>
-          f.endsWith('Package.swift') ||
-          f.endsWith('package.json') ||
-          f.endsWith('Cargo.toml') ||
-          f.endsWith('go.mod') ||
-          f.endsWith('pyproject.toml') ||
-          f.endsWith('CMakeLists.txt') ||
-          f.endsWith('Makefile') ||
-          f.endsWith('README.md'),
-      )
-      .slice(0, 20)
-
-    prompt += `\n**Key files:** ${keyFiles.join(', ')}\n`
+    prompt += `\nPlease use the Glob and Read tools to find and read documentation files (.md files, package.json, etc.) before generating AGENTS.md. Focus on extracting factual information only.\n`
   }
 
   if (options.projectDocs) {
-    const docPreview = options.projectDocs.slice(0, 500)
-    prompt += `\n**README excerpt:**\n${docPreview}${options.projectDocs.length > 500 ? '...' : ''}\n`
+    prompt += `\n## Project Documentation\n\n${options.projectDocs}\n`
+  } else {
+    prompt += `\n## Project Documentation\n\nNo README found. Use the Read tool to find documentation, or state "See project documentation" for unknown sections.\n`
   }
 
-  prompt += `\nNow generate the complete AGENTS.md file with all required sections.`
+  prompt += `\nNow generate the complete AGENTS.md file with all required sections. Remember: ONLY include information explicitly found in documentation.`
 
   let markdown = await generateWithAgent(
     prompt,
@@ -552,22 +470,13 @@ export async function generateAndSaveAgentsMd(
     console.log('🔍 Analyzing project for AGENTS.md...')
   }
 
-  const existingFiles = options.analyzeCodebase
-    ? analyzeCodebase(config.workingDir)
-    : undefined
-
   const projectDocs = readProjectDocs(config.workingDir) || undefined
-
-  if (options.verbose && existingFiles) {
-    console.log(`   Found ${existingFiles.length} files`)
-  }
 
   if (options.verbose) {
     console.log('🤖 Generating AGENTS.md...')
   }
 
   const agentsMd = await generateAgentsMd(description, config, {
-    existingFiles,
     projectDocs,
     analyzeCodebase: options.analyzeCodebase,
   })
@@ -634,7 +543,6 @@ export async function generateProjectFiles(
   }
 
   const agentsMd = await generateAgentsMd(description, config, {
-    existingFiles,
     projectDocs,
     analyzeCodebase: options.analyzeCodebase,
   })
