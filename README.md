@@ -122,54 +122,48 @@ CLAUDE_MODEL=claude-sonnet-4-20250514  # Optional, defaults to sonnet
 
 ## PRD Format
 
-Create a `PRD.md` file in your project root. The key to success: **Each feature needs clear, testable acceptance criteria.** This is what tells Ralph when a task is truly "done."
+Create a `PRD.md` file in your project root. Each task should have brief sub-items that describe what needs to be done.
 
 ```markdown
 # Project Name
 
 ## High Priority
 
-### Feature: User Authentication
+### User Authentication
 
-#### Requirements
+- Implement OAuth login with Google
+- Add session management with persistence across page reloads
+- Create logout functionality
+- Tests pass
 
-- OAuth login with Google
-- Session management
-- Logout functionality
+### Database Schema
 
-#### Acceptance Criteria
-
-- [ ] User can log in with Google
-- [ ] Session persists across page reloads
-- [ ] User can log out
-- [ ] Tests pass
-
-**Output when complete:** `<promise>DONE</promise>`
+- Create user table with email, password_hash, created_at columns
+- Add proper indexes for email lookups
+- Tests pass
 
 ## Medium Priority
 
-### Feature: Dashboard
+### Dashboard
 
-#### Requirements
+- Display user stats on main page
+- Show recent activity feed
+- Dashboard loads within 2 seconds
 
-- Display user stats
-- Show recent activity
+## Low Priority
 
-#### Acceptance Criteria
+### Documentation
 
-- [ ] Dashboard loads within 2 seconds
-- [ ] Stats are accurate
-- [ ] Tests pass
-
-**Output when complete:** `<promise>DONE</promise>`
+- Add API documentation
+- Update README with setup instructions
 ```
 
-### Good vs Bad Acceptance Criteria
+### Good vs Bad Sub-items
 
-**Good criteria:** "User can log in with Google and session persists across page reloads"
-**Bad criteria:** "Auth works correctly"
+**Good:** "Create user table with email, password_hash, created_at columns"
+**Bad:** "Set up database"
 
-The more specific your acceptance criteria, the better Ralph performs.
+The more specific your sub-items, the better Ralph performs.
 
 ## AGENTS.md
 

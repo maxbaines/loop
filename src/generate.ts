@@ -39,45 +39,26 @@ Brief description of the project
 
 ## High Priority
 
-### Feature: Feature Name
+### Task Name
+- Brief sub-task or implementation detail
+- Another specific thing to do
+- Tests pass
 
-#### Requirements
-- What needs to be built (description)
-- Another requirement
-
-#### Acceptance Criteria
-- [ ] Clear, testable criterion that tells the agent when this is "done"
-- [ ] Another specific, verifiable criterion
-- [ ] Tests pass
-
-**Output when complete:** \`<promise>DONE</promise>\`
+### Another Task
+- Sub-task description
+- Another detail
 
 ## Medium Priority
 
-### Feature: Another Feature
-
-#### Requirements
-- Description of what to build
-
-#### Acceptance Criteria
-- [ ] User can do X
-- [ ] System handles Y correctly
-- [ ] Tests pass
-
-**Output when complete:** \`<promise>DONE</promise>\`
+### Task Name
+- Sub-task
+- Another sub-task
 
 ## Low Priority
 
-### Feature: Polish Feature
-
-#### Requirements
-- What to improve
-
-#### Acceptance Criteria
-- [ ] Specific improvement is visible
-- [ ] Tests pass
-
-**Output when complete:** \`<promise>DONE</promise>\`
+### Polish Task
+- Detail
+- Another detail
 
 ## Guidelines
 
@@ -86,22 +67,22 @@ Brief description of the project
    - MEDIUM: Standard features, implementation
    - LOW: Polish, documentation, cleanup
 
-2. **Acceptance Criteria are KING:**
-   - Each criterion is a checkbox that tells the agent exactly what "done" looks like
-   - Good: "User can log in with Google and session persists"
-   - Bad: "Auth works correctly"
-   - Be specific and verifiable
-   - Include edge cases
-   - Always include "Tests pass" as a criterion
+2. **Sub-items define the task:**
+   - Each sub-item is a brief description of what needs to be done
+   - Good: "Create user table with email, password_hash, created_at columns"
+   - Bad: "Set up database"
+   - Be specific and actionable
+   - Include "Tests pass" as a sub-item when relevant
 
-3. **Keep features atomic:**
-   - Each feature should be completable in one iteration
-   - If a feature is too large, break it into multiple features
-   - One logical change per feature
+3. **Keep tasks atomic:**
+   - Each task should be completable in one iteration
+   - If a task is too large, break it into multiple tasks
+   - One logical change per task
 
-4. **Requirements vs Acceptance Criteria:**
-   - Requirements: WHAT needs to be built (description)
-   - Acceptance Criteria: HOW we know it's done (testable checkboxes)
+4. **DO NOT include:**
+   - Completion markers or promise tags
+   - Checkboxes (the agent handles completion tracking)
+   - Verbose explanations
 
 ## Output
 
