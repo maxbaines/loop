@@ -10,7 +10,6 @@ export * as git from './git.ts'
 // Export CompleteTask tool for atomic task completion
 export {
   executeCompleteTask,
-  getCompleteTaskToolDescription,
   type CompleteTaskInput,
   type CompleteTaskResult,
   type CompleteTaskConfig,

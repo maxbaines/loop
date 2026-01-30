@@ -419,6 +419,26 @@ WHY: Automated task completion via CompleteTask tool`,
         }
       }
 
+      // Commit any remaining changes (e.g., progress.txt, prd.md updates)
+      const hasRemainingChanges = checkForUncommittedChanges(config.workingDir)
+      if (hasRemainingChanges) {
+        const loopCommitMessage = `chore(loop): Update progress tracking
+
+WHAT: Loop housekeeping after iteration ${state.iteration}
+- Updated PRD task status
+${config.progressMode === 'file' ? '- Updated progress.txt' : ''}
+
+WHY: Automated by Loop to track task completion`
+
+        const loopCommitSuccess = autoCommitChanges(
+          config.workingDir,
+          loopCommitMessage,
+        )
+        if (loopCommitSuccess) {
+          console.log(formatInfo('  → Committed loop tracking updates'))
+        }
+      }
+
       // Check for completion
       if (result.isComplete) {
         state.isComplete = true

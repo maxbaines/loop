@@ -184,35 +184,3 @@ export async function executeCompleteTask(
     message: parts.join(' | '),
   }
 }
-
-/**
- * Format the CompleteTask tool for the agent's system prompt
- */
-export function getCompleteTaskToolDescription(): string {
-  return `### CompleteTask Tool
-
-When you have finished implementing a task, call the CompleteTask tool to:
-1. Git commit your changes with a detailed message
-2. Update progress tracking
-3. Mark the PRD task as [DONE]
-
-**Usage:** Call this tool when your implementation is complete and all back pressure checks pass.
-
-**Input format:**
-\`\`\`json
-{
-  "taskDescription": "The exact task description from the PRD",
-  "commitMessage": "feat: Brief summary\\n\\nWHAT: Detailed changes\\nWHY: Reasoning\\nNEXT: Follow-up (optional)",
-  "filesChanged": ["file1.ts", "file2.ts"],
-  "decisions": ["Decision 1: why this approach", "Decision 2: tradeoffs"],
-  "summary": "Brief 1-2 sentence summary"
-}
-\`\`\`
-
-**Important:**
-- The taskDescription should match the PRD item closely
-- Write detailed, multi-line commit messages
-- List all files you changed
-- Document key decisions for future reference
-`
-}

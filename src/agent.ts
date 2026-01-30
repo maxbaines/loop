@@ -24,7 +24,6 @@ import {
   formatInterventionMessage,
   type InterventionResult,
 } from './keyboard.ts'
-import { getCompleteTaskToolDescription } from './tools/index.ts'
 
 /**
  * Parse structured output from agent response
@@ -312,27 +311,14 @@ ${progressSummary}
 ${backPressureInstructions}
 ${agentsMd ? `### Project Guidelines (AGENTS.md)\n${agentsMd}` : ''}
 
-${getCompleteTaskToolDescription()}
-
 ## Completion
 
 When you have finished implementing the task and all back pressure checks pass:
 
-1. **Use the CompleteTask tool** to commit, update progress, and mark the PRD task as done
-2. The tool will handle git commit, progress.txt update, and PRD marking atomically
+1. **Commit your changes** using git: \`git add -A && git commit -m "message"\`
+2. Loop will automatically update progress tracking and mark the PRD task as done
 
-Example CompleteTask call:
-\`\`\`json
-{
-  "taskDescription": "${task.description}",
-  "commitMessage": "feat: ${task.description}\\n\\nWHAT: Describe changes\\nWHY: Reasoning\\nNEXT: Follow-up",
-  "filesChanged": ["file1.ts"],
-  "decisions": ["Decision 1"],
-  "summary": "Brief summary"
-}
-\`\`\`
-
-After calling CompleteTask, you MUST output this format:
+After committing, output this format:
 
 ## Changes Made
 [1-2 sentences: what changed and why]
@@ -576,7 +562,7 @@ export async function runIteration(
     }
 
     let prompt =
-      'Implement the task described in your instructions. Focus only on this specific task, run back pressure checks when done, then use the CompleteTask tool to finish.'
+      'Implement the task described in your instructions. Focus only on this specific task, run back pressure checks when done, then commit your changes with git.'
 
     // Check for pending intervention to include in initial prompt
     const keyboard = getKeyboardListener()
