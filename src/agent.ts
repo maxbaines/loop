@@ -301,6 +301,12 @@ Priority: ${task.priority}
 - Run back pressure checks after changes
 - **NEVER commit with failing checks**
 
+## Protected Files (DO NOT MODIFY)
+These files are managed by Loop - never edit them directly:
+- AGENTS.md - Project guidelines (read-only)
+- prd.md, do.md, plans/prd.md - Task lists managed by Loop
+- progress.txt - Progress tracking managed by Loop
+
 ## Progress Context
 ${progressSummary}
 ${backPressureInstructions}
@@ -410,6 +416,12 @@ You have access to powerful built-in tools:
 - If a task feels too large, break it into subtasks.
 - Run back pressure checks after each change, not at the end.
 - **NEVER commit with failing checks** - this is the most important rule.
+
+## Protected Files (DO NOT MODIFY)
+These files are managed by Loop - never edit them directly:
+- AGENTS.md - Project guidelines (read-only)
+- prd.md, do.md, plans/prd.md - Task lists managed by Loop
+- progress.txt - Progress tracking managed by Loop
 
 ## Current State
 
